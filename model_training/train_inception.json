@@ -1,0 +1,78 @@
+{
+  "n_gpu": 1,
+  "base_dir": "model_training",
+  "arch": {
+    "args": {
+      "n_blocks": 2,
+      "kernel_sizes": [
+        9,
+        19,
+        39
+      ],
+      "n_filters": 32,
+      "num_classes": 108,
+      "input_bottleneck": true,
+      "attention": "CBAM_Channel",
+      "bottleneck_channels": 32,
+      "in_channels": 12
+    },
+    "type": "InceptionTimeV2"
+  },
+  "data_loader": {
+    "batch_size": 64,
+    "resample_Fs": 300,
+    "window_size": 3000,
+    "normalization": false,
+    "augmentation": {
+      "method": null,
+      "prob": 0.8
+    }
+  },
+  "optimizer": {
+    "type": "Adam",
+    "args": {
+      "lr": 0.0005,
+      "weight_decay": 0.0001,
+      "amsgrad": true
+    }
+  },
+  "loss": {
+    "type": "bce_with_logits_loss"
+  },
+  "metrics": [
+    "accuracy",
+    "f_measure",
+    "macro_f_beta_measure",
+    "macro_g_beta_measure",
+    "macro_auroc",
+    "macro_auprc",
+    "challenge_metric"
+  ],
+  "lr_scheduler": {
+    "args": {
+      "multiplier": 1.5,
+      "total_epoch": 5,
+      "after_scheduler": {
+        "args": {
+          "min_lr": 0,
+          "mode": "min",
+          "threshold_mode": "rel",
+          "factor": 0.1,
+          "eps": 1e-08,
+          "cooldown": 0,
+          "patience": 6,
+          "verbose": false,
+          "threshold": 0.0001
+        },
+        "type": "ReduceLROnPlateau"
+      }
+    },
+    "type": "GradualWarmupScheduler"
+  },
+  "trainer": {
+    "epochs": 100,
+    "monitor": "max val_challenge_metric",
+    "early_stop": 15,
+    "only_scored": true
+  }
+}
