@@ -56,7 +56,7 @@
     }
   },
   "trainer": {
-    "epochs": 1,
+    "epochs": 1000,
     "monitor": "max val_challenge_metric",
     "early_stop": 10,
     "only_scored": true
