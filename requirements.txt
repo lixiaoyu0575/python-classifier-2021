@@ -1,13 +1,11 @@
-numpy==1.19.4
-scipy==1.5.4
-scikit-learn==0.23.2
-joblib==0.17.0
+numpy==1.18.5
+scipy==1.4.1
+scikit-learn==0.20.4
+joblib==0.14.1
 h5py==2.10.0
 iterative-stratification==0.1.6
 neurokit==0.2.0
 pandas==0.24.2
-scikit-learn==0.20.4
-scipy==1.4.1
 tensorboardX==2.1
 PyWavelets==1.1.1
 torch==1.4.0
