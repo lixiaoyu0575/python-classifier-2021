@@ -101,7 +101,8 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     model.to(device)
 
     # Get function handles of loss and metrics
-    criterion = getattr(modules, config['loss']['type'])
+    # criterion = getattr(modules, config['loss']['type'])
+    criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 
     # Get function handles of metrics
     challenge_metrics = ChallengeMetric(data_directory)
@@ -402,15 +403,16 @@ def train(model, optimizer, train_loader, criterion, metric, indices, epoch, dev
     Loss = 0
     total = 0
     batchs = 0
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for batch_idx, (data, target, class_weights) in enumerate(train_loader):
         batch_start = time.time()
-        data, target = data.to(device), target.to(device)
+        data, target, class_weights = data.to(device), target.to(device), class_weights.to(device)
         optimizer.zero_grad()
         output = model(data)
         if not indices is None:
-            loss = criterion(output[:, indices], target[:, indices])
+            loss = criterion(output[:, indices], target[:, indices]) * class_weights[:, indices]
         else:
-            loss = criterion(output, target)
+            loss = criterion(output, target) * class_weights
+        loss = torch.mean(loss)
         loss.backward()
         optimizer.step()
 
@@ -439,13 +441,14 @@ def valid(model, valid_loader, criterion, metric, indices, device=None):
     total = 0
     batchs = 0
     with torch.no_grad():
-        for batch_idx, (data, target) in enumerate(valid_loader):
-            data, target = data.to(device), target.to(device)
+        for batch_idx, (data, target, class_weights) in enumerate(valid_loader):
+            data, target, class_weights = data.to(device), target.to(device), class_weights.to(device)
             output = model(data)
             if not indices is None:
-                loss = criterion(output[:, indices], target[:, indices])
+                loss = criterion(output[:, indices], target[:, indices]) * class_weights[:, indices]
             else:
-                loss = criterion(output, target)
+                loss = criterion(output, target) * class_weights
+            loss = torch.mean(loss)
             c = metric(to_np(sigmoid(output), device), to_np(target, device))
             cc += c
             Loss += loss

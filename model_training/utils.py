@@ -442,8 +442,9 @@ class CustomTensorDataset(Dataset):
                 x = self.transform(x)
 
         y = self.tensors[1][index]
+        w = self.tensors[2][index]
 
-        return x, y
+        return x, y, w
 
     def __len__(self):
         return self.tensors[0].size(0)

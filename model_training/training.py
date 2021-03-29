@@ -89,17 +89,56 @@ class ChallengeDataLoader(BaseDataLoader):
 
         num_files = len(label_files)
         train_recordings = list()
+        train_class_weights = list()
         train_labels_onehot = list()
 
         val_recordings = list()
+        val_class_weights = list()
         val_labels_onehot = list()
 
         file_names = list()
 
-        print("Data processing:")
+        ### class for dataset
+        #equivalent diagnose [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001']]
+        #CPSC
+        CPSC_classes = ['270492004', '164889003', '164909002', '284470004', '426783006', '713427006'] #"59118001" = "713427006"
+        CPSC_class_weight = np.zeros((108,))
+        for cla in CPSC_classes:
+            CPSC_class_weight[classes.index(cla)] = 1
+        #CPSC_extra
+        CPSC_extra_excluded_classes = ['445118002', '39732003', '251146004', '164947007']
+        CPSC_extra_class_weight = np.ones((108,))
+        for cla in CPSC_extra_excluded_classes:
+            CPSC_extra_class_weight[classes.index(cla)] = 0
+        #PTB-XL
+        PTB_XL_excluded_classes = ['426627000', '427172004'] #, '17338001'
+        PTB_XL_class_weight = np.ones((108,))
+        for cla in PTB_XL_excluded_classes:
+            PTB_XL_class_weight[classes.index(cla)] = 0
+        #G12ECG
+        G12ECG_excluded_classes = ['10370003', '427172004', '164947007']
+        G12ECG_class_weight = np.ones((108,))
+        for cla in G12ECG_excluded_classes:
+            G12ECG_class_weight[classes.index(cla)] = 0
+
+
         for i in range(num_files):
             print('{}/{}'.format(i+1, num_files))
             recording, header, name = load_challenge_data(label_files[i], label_dir)
+            if name[0] == 'S' or name[0] == 'I': # PTB or St.P dataset
+                continue
+            elif name[0] == 'A': # CPSC
+                class_weight = CPSC_class_weight
+            elif name[0] == 'Q': # CPSC-extra
+                class_weight = CPSC_extra_class_weight
+            elif name[0] == 'H': # PTB-XL
+                class_weight = PTB_XL_class_weight
+            elif name[0] == 'E': # G12ECG
+                class_weight = G12ECG_class_weight
+            else:
+                print('warning! not from one of the datasets')
+                print(name)
+
             recording[np.isnan(recording)] = 0
 
             # divide ADC_gain and resample
@@ -109,7 +148,7 @@ class ChallengeDataLoader(BaseDataLoader):
             recording = slide_and_cut(recording, n_segment, window_size, resample_Fs)
 
             file_names.append(name)
-            if i in train_index:
+            if i in train_index: # or name[0] == 'A'
                 for j in range(recording.shape[0]):
                     train_recordings.append(recording[j])
                     if _25classes:
@@ -117,8 +156,10 @@ class ChallengeDataLoader(BaseDataLoader):
                         label[:24] = labels_onehot[i, indices]
                         label[24] = labels_onehot[i, indices_unscored].any()
                         train_labels_onehot.append(label)
+                        train_class_weights.append(class_weight)
                     else:
                         train_labels_onehot.append(labels_onehot[i])
+                        train_class_weights.append(class_weight)
             elif i in val_index:
                 for j in range(recording.shape[0]):
                     val_recordings.append(recording[j])
@@ -127,8 +168,10 @@ class ChallengeDataLoader(BaseDataLoader):
                         label[:24] = labels_onehot[i, indices]
                         label[24] = labels_onehot[i, indices_unscored].any()
                         val_labels_onehot.append(label)
+                        val_class_weights.append(class_weight)
                     else:
                         val_labels_onehot.append(labels_onehot[i])
+                        val_class_weights.append(class_weight)
                 else:
                     pass
 
@@ -136,9 +179,11 @@ class ChallengeDataLoader(BaseDataLoader):
         print(np.isnan(val_recordings).any())
 
         train_recordings = np.array(train_recordings)
+        train_class_weights = np.array(train_class_weights)
         train_labels_onehot = np.array(train_labels_onehot)
 
         val_recordings = np.array(val_recordings)
+        val_class_weights = np.array(val_class_weights)
         val_labels_onehot = np.array(val_labels_onehot)
 
         # Normalization
@@ -147,9 +192,11 @@ class ChallengeDataLoader(BaseDataLoader):
             val_recordings = self.normalization(val_recordings)
 
         X_train = torch.from_numpy(train_recordings).float()
+        X_train_class_weight = torch.from_numpy(train_class_weights).float()
         Y_train = torch.from_numpy(train_labels_onehot).float()
 
         X_val = torch.from_numpy(val_recordings).float()
+        X_val_class_weight = torch.from_numpy(val_class_weights).float()
         Y_val = torch.from_numpy(val_labels_onehot).float()
 
         X_train_tmp = torch.zeros_like(X_train)
@@ -178,11 +225,11 @@ class ChallengeDataLoader(BaseDataLoader):
                 transformers.append(getattr(module_augmentation, key)(**module_args))
 
             train_transform = transforms.Compose(transformers)
-            self.train_dataset = CustomTensorDataset(X_train, Y_train, transform=train_transform, p=p)
+            self.train_dataset = CustomTensorDataset(X_train, Y_train, X_train_class_weight, transform=train_transform, p=p)
         else:
-            self.train_dataset = TensorDataset(X_train, Y_train)
+            self.train_dataset = CustomTensorDataset(X_train, Y_train, X_train_class_weight)
 
-        self.val_dataset = TensorDataset(X_val, Y_val)
+        self.val_dataset = CustomTensorDataset(X_val, Y_val, X_val_class_weight)
         super().__init__(self.train_dataset, self.val_dataset, batch_size, shuffle, num_workers)
 
         self.valid_data_loader.file_names = file_names
