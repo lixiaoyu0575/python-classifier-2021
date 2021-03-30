@@ -106,7 +106,7 @@ class ChallengeDataLoader(BaseDataLoader):
         for cla in CPSC_classes:
             CPSC_class_weight[classes.index(cla)] = 1
         #CPSC_extra
-        CPSC_extra_excluded_classes = ['445118002', '39732003', '251146004', '698252002', '10370003', '427172004', '164947007', '111975006', '164917005', '47665007', '59118001', '427393009', '426177001', '426783006', '59931005', '17338001']
+        CPSC_extra_excluded_classes = ['445118002', '39732003', '251146004', '698252002', '10370003', '164947007', '111975006', '164917005', '47665007', '427393009', '426783006', '59931005']
         CPSC_extra_class_weight = np.ones((108,))
         for cla in CPSC_extra_excluded_classes:
             CPSC_extra_class_weight[classes.index(cla)] = 0
@@ -116,7 +116,7 @@ class ChallengeDataLoader(BaseDataLoader):
         for cla in PTB_XL_excluded_classes:
             PTB_XL_class_weight[classes.index(cla)] = 0
         #G12ECG
-        G12ECG_excluded_classes = ['10370003', '427172004', '164947007', '426627000', '10370003', '63593006']
+        G12ECG_excluded_classes = ['10370003', '164947007']
         G12ECG_class_weight = np.ones((108,))
         for cla in G12ECG_excluded_classes:
             G12ECG_class_weight[classes.index(cla)] = 0
