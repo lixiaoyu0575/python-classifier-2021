@@ -61,7 +61,7 @@ def training_code(data_directory, model_directory):
 
     #json files
     training_root = 'model_training/'
-    configs = ['train.json', 'train_6leads.json', 'train_3leads.json', 'train_2leads.json']
+    configs = ['train_6leads.json', 'train_3leads.json', 'train_2leads.json', 'train.json']
 
     for config_json_path in configs:
         train_model(training_root + config_json_path, split_idx, data_directory, model_directory)
@@ -265,20 +265,20 @@ def run_my_model(model, header, recording, config_path):
         config = json.load(fp)
     lead_number = config['lead_number']
 
-    ### to get recording in shape [12, ?]
-    recording_tmp = np.zeros((12, recording.shape[1]))
-    leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    if lead_number == 2:
-        # two leads
-        leads_index = [1, 11]
-    elif lead_number == 3:
-        # three leads
-        leads_index = [0, 1, 7]
-    elif lead_number == 6:
-        # six leads
-        leads_index = [0, 1, 2, 3, 4, 5]
-    recording_tmp[leads_index] = recording
-    recording = recording_tmp
+    # ### to get recording in shape [12, ?]
+    # recording_tmp = np.zeros((12, recording.shape[1]))
+    # leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    # if lead_number == 2:
+    #     # two leads
+    #     leads_index = [1, 11]
+    # elif lead_number == 3:
+    #     # three leads
+    #     leads_index = [0, 1, 7]
+    # elif lead_number == 6:
+    #     # six leads
+    #     leads_index = [0, 1, 2, 3, 4, 5]
+    # recording_tmp[leads_index] = recording
+    # recording = recording_tmp
 
     # divide ADC_gain and resample
     resample_Fs = config["data_loader"]["resample_Fs"]

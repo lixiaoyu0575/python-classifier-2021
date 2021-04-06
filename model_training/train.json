@@ -1,7 +1,7 @@
 {
   "n_gpu": 1,
   "base_dir": "model_training",
-  "lead_number": 12,
+  "lead_number": 8,
   "arch": {
     "type": "resnest",
     "args": {
@@ -14,7 +14,8 @@
       "bottleneck_width": 64,
       "stem_width": 16,
       "num_classes": 108,
-      "kernel_size": 7
+      "kernel_size": 7,
+      "channel_num": 8
     }
   },
   "data_loader": {

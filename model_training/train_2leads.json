@@ -11,10 +11,11 @@
         1,
         3
       ],
-      "bottleneck_width": 64,
+      "bottleneck_width": 16,
       "stem_width": 16,
       "num_classes": 108,
-      "kernel_size": 7
+      "kernel_size": 7,
+      "channel_num": 2
     }
   },
   "data_loader": {

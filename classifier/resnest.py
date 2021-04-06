@@ -249,7 +249,7 @@ class ResNet(nn.Module):
                  rectified_conv=False, rectify_avg=False,
                  avd=False, avd_first=False,
                  final_drop=0.0, dropblock_prob=0,
-                 last_gamma=False, norm_layer=nn.BatchNorm1d, kernel_size=7):
+                 last_gamma=False, norm_layer=nn.BatchNorm1d, kernel_size=7, channel_num=12):
         self.num_classes = num_classes
         self.cardinality = groups
         self.bottleneck_width = bottleneck_width
@@ -274,7 +274,7 @@ class ResNet(nn.Module):
         conv_kwargs = {'average_mode': rectify_avg} if rectified_conv else {}
         if deep_stem:
             self.conv1 = nn.Sequential(
-                conv_layer(12, stem_width, kernel_size=kernel_size, stride=2, padding=(kernel_size - 1) // 2, bias=False, **conv_kwargs),
+                conv_layer(channel_num, stem_width, kernel_size=kernel_size, stride=2, padding=(kernel_size - 1) // 2, bias=False, **conv_kwargs),
                 norm_layer(stem_width),
                 nn.ReLU(inplace=True),
                 conv_layer(stem_width, stem_width, kernel_size=kernel_size, stride=1, padding=(kernel_size - 1) // 2, bias=False, **conv_kwargs),
@@ -430,12 +430,12 @@ def resnest50(pretrained=False, root='~/.encoding/models', **kwargs):
     return model
 
 def resnest(pretrained=False, layers=[3, 4, 6, 3], radix=2, groups=1, bottleneck_width=64,
-                   deep_stem=True, stem_width=32, avg_down=True, kernel_size=7,
+                   deep_stem=True, stem_width=32, avg_down=True, kernel_size=7, channel_num=12,
                    avd=True, avd_first=False, root='~/.encoding/models', **kwargs):
     model = ResNet(Bottleneck, layers,
                    radix=radix, groups=groups, bottleneck_width=bottleneck_width,
                    deep_stem=deep_stem, stem_width=stem_width, avg_down=avg_down,
-                   avd=avd, avd_first=avd_first, kernel_size=kernel_size, **kwargs)
+                   avd=avd, avd_first=avd_first, kernel_size=kernel_size, channel_num=channel_num, **kwargs)
     if pretrained:
         model.load_state_dict(torch.hub.load_state_dict_from_url(
             resnest_model_urls['resnest50'], progress=True, check_hash=True))

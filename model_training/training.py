@@ -211,9 +211,18 @@ class ChallengeDataLoader(BaseDataLoader):
         elif lead_number == 6:
             # six leads
             leads_index = [0, 1, 2, 3, 4, 5]
+        else:
+            # eight leads
+            leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
 
-        X_train_tmp[:, leads_index, :] = X_train[:, leads_index, :]
-        X_val_tmp[:, leads_index, :] = X_val[:, leads_index, :]
+        ### different leads in the same shape
+        # X_train_tmp[:, leads_index, :] = X_train[:, leads_index, :]
+        # X_val_tmp[:, leads_index, :] = X_val[:, leads_index, :]
+
+        ### different leads in the same shape
+        X_train_tmp = X_train[:, leads_index, :]
+        X_val_tmp = X_val[:, leads_index, :]
+
         X_train = X_train_tmp
         X_val = X_val_tmp
 
