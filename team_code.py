@@ -197,9 +197,7 @@ def save_model(filename, classes, leads, imputer, classifier):
     d = {'classes': classes, 'leads': leads, 'imputer': imputer, 'classifier': classifier}
     joblib.dump(d, filename, protocol=0)
 
-def load_my_model(config_path, checkpoint_path=None):
-    with open(config_path, 'r', encoding='utf8')as fp:
-        config = json.load(fp)
+def load_my_model(config, checkpoint_path=None):
 
     for file, types in files_models.items():
         for type in types:
@@ -219,32 +217,40 @@ def load_my_model(config_path, checkpoint_path=None):
 # Load your trained 12-lead ECG model. This function is *required*. Do *not* change the arguments of this function.
 def load_twelve_lead_model(model_directory):
     config_json = 'model_training/train.json'
-    checkpoint_path = model_directory + '/lead_12_model_best.pth'
-    model = load_my_model(config_json, checkpoint_path)
+    with open(config_json, 'r', encoding='utf8')as fp:
+        config = json.load(fp)
+    checkpoint_path = model_directory + '/lead_' + str(config['lead_number']) + '_model_best.pth'
+    model = load_my_model(config, checkpoint_path)
     model.eval()
     return model
 
 # Load your trained 6-lead ECG model. This function is *required*. Do *not* change the arguments of this function.
 def load_six_lead_model(model_directory):
     config_json = 'model_training/train_6leads.json'
-    checkpoint_path = model_directory + '/lead_6_model_best.pth'
-    model = load_my_model(config_json, checkpoint_path)
+    with open(config_json, 'r', encoding='utf8')as fp:
+        config = json.load(fp)
+    checkpoint_path = model_directory + '/lead_' + str(config['lead_number']) + '_model_best.pth'
+    model = load_my_model(config, checkpoint_path)
     model.eval()
     return model
 
 # Load your trained 3-lead ECG model. This function is *required*. Do *not* change the arguments of this function.
 def load_three_lead_model(model_directory):
     config_json = 'model_training/train_3leads.json'
-    checkpoint_path = model_directory + '/lead_3_model_best.pth'
-    model = load_my_model(config_json, checkpoint_path)
+    with open(config_json, 'r', encoding='utf8')as fp:
+        config = json.load(fp)
+    checkpoint_path = model_directory + '/lead_' + str(config['lead_number']) + '_model_best.pth'
+    model = load_my_model(config, checkpoint_path)
     model.eval()
     return model
 
 # Load your trained 2-lead ECG model. This function is *required*. Do *not* change the arguments of this function.
 def load_two_lead_model(model_directory):
     config_json = 'model_training/train_2leads.json'
-    checkpoint_path = model_directory + '/lead_2_model_best.pth'
-    model = load_my_model(config_json, checkpoint_path)
+    with open(config_json, 'r', encoding='utf8')as fp:
+        config = json.load(fp)
+    checkpoint_path = model_directory + '/lead_' + str(config['lead_number']) + '_model_best.pth'
+    model = load_my_model(config, checkpoint_path)
     model.eval()
     return model
 
