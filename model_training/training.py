@@ -70,6 +70,11 @@ class ChallengeDataLoader(BaseDataLoader):
         classes, labels_onehot, labels = load_labels(label_files, normal_class, equivalent_classes)
         self.classes = classes
 
+        ### get coarse label
+        # coarse_labels_onehot = np.zeros((len(labels_onehot, 108)))
+        # for label in labels_onehot:
+
+
         # Load the weights for the Challenge metric.
         print('Loading weights...')
         weights = load_weights(weights_file, classes)
@@ -121,7 +126,7 @@ class ChallengeDataLoader(BaseDataLoader):
         for cla in G12ECG_excluded_classes:
             G12ECG_class_weight[classes.index(cla)] = 0
 
-
+        ### preprocess data and label
         for i in range(num_files):
             print('{}/{}'.format(i+1, num_files))
             recording, header, name = load_challenge_data(label_files[i], label_dir)
@@ -139,6 +144,9 @@ class ChallengeDataLoader(BaseDataLoader):
                 print('warning! not from one of the datasets')
                 print(name)
 
+
+            ### coarse label
+
             recording[np.isnan(recording)] = 0
 
             # divide ADC_gain and resample
@@ -146,7 +154,8 @@ class ChallengeDataLoader(BaseDataLoader):
 
             # slide and cut
             recording = slide_and_cut(recording, n_segment, window_size, resample_Fs)
-
+            # np.save('/data/ecg/preprocessed_data/challenge2020/recordings_'+str(window_size)+'_'+str(resample_Fs)+'.npy', recording)
+            # recording = np.load('/data/ecg/preprocessed_data/challenge2020/recordings_'+str(window_size)+'_'+str(resample_Fs)+'.npy')
             file_names.append(name)
             if i in train_index or name[0] == 'A' or name[0] == 'Q':
                 for j in range(recording.shape[0]):
@@ -186,6 +195,35 @@ class ChallengeDataLoader(BaseDataLoader):
         val_class_weights = np.array(val_class_weights)
         val_labels_onehot = np.array(val_labels_onehot)
 
+        np.save('/data/ecg/preprocessed_data/challenge2020/train_recordings_' + str(window_size) + '_' + str(
+            resample_Fs) + '.npy', train_recordings)
+        np.save('/data/ecg/preprocessed_data/challenge2020/train_class_weights_' + str(window_size) + '_' + str(
+            resample_Fs) + '.npy', train_class_weights)
+        np.save('/data/ecg/preprocessed_data/challenge2020/train_labels_onehot_' + str(window_size) + '_' + str(
+            resample_Fs) + '.npy', train_labels_onehot)
+        np.save('/data/ecg/preprocessed_data/challenge2020/val_recordings_' + str(window_size) + '_' + str(
+            resample_Fs) + '.npy', val_recordings)
+        np.save('/data/ecg/preprocessed_data/challenge2020/val_class_weights_' + str(window_size) + '_' + str(
+            resample_Fs) + '.npy', val_class_weights)
+        np.save('/data/ecg/preprocessed_data/challenge2020/val_labels_onehot_' + str(window_size) + '_' + str(
+            resample_Fs) + '.npy', val_labels_onehot)
+        print('data saved!!!')
+
+        # ### get saved data and label
+        # train_recordings = np.load('/data/ecg/preprocessed_data/challenge2020/train_recordings_' + str(window_size) + '_' + str(
+        #     resample_Fs) + '.npy')
+        # train_class_weights = np.load('/data/ecg/preprocessed_data/challenge2020/train_class_weights_' + str(window_size) + '_' + str(
+        #     resample_Fs) + '.npy')
+        # train_labels_onehot = np.load('/data/ecg/preprocessed_data/challenge2020/train_labels_onehot_' + str(window_size) + '_' + str(
+        #     resample_Fs) + '.npy')
+        # val_recordings = np.load('/data/ecg/preprocessed_data/challenge2020/val_recordings_' + str(window_size) + '_' + str(
+        #     resample_Fs) + '.npy')
+        # val_class_weights = np.load('/data/ecg/preprocessed_data/challenge2020/val_class_weights_' + str(window_size) + '_' + str(
+        #     resample_Fs) + '.npy')
+        # val_labels_onehot = np.load('/data/ecg/preprocessed_data/challenge2020/val_labels_onehot_' + str(window_size) + '_' + str(
+        #     resample_Fs) + '.npy')
+        # print('got data and label!!!')
+
         # Normalization
         if normalization:
             train_recordings = self.normalization(train_recordings)
@@ -204,7 +242,7 @@ class ChallengeDataLoader(BaseDataLoader):
         leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         if lead_number == 2:
             # two leads
-            leads_index = [1, 11]
+            leads_index = [1, 10]
         elif lead_number == 3:
             # three leads
             leads_index = [0, 1, 7]
@@ -215,7 +253,7 @@ class ChallengeDataLoader(BaseDataLoader):
             # eight leads
             leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
 
-        ### different leads in the same shape
+        # ### different leads in the same shape
         # X_train_tmp[:, leads_index, :] = X_train[:, leads_index, :]
         # X_val_tmp[:, leads_index, :] = X_val[:, leads_index, :]
 

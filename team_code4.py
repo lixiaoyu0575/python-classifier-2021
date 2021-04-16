@@ -64,7 +64,7 @@ def training_code(data_directory, model_directory):
     #json files
     training_root = 'model_training/'
     # configs = ['train_6leads.json', 'train_3leads.json', 'train_2leads.json', 'train.json']
-    configs = ['train_2leads_swin_transformer.json']
+    configs = ['train_12leads_swin_transformer.json']
 
     for config_json_path in configs:
         train_model(training_root + config_json_path, split_idx, data_directory, model_directory)
