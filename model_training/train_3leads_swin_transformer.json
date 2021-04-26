@@ -19,14 +19,15 @@
       ],
       "in_chans": 3,
       "embed_dim": 96,
-      "patch_size":4,
-      "window_size": 7
+      "patch_size":3,
+      "window_size": [5, 5, 20, 20],
+      "img_size": 4800
     }
   },
   "data_loader": {
-    "batch_size": 128,
-    "resample_Fs": 300,
-    "window_size":3584,
+    "batch_size": 100,
+    "resample_Fs": 250,
+    "window_size":4800,
     "normalization": false,
     "augmentation": {
     "method": null,

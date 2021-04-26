@@ -579,6 +579,9 @@ class SwinTransformer(nn.Module):
 
 if __name__ == '__main__':
     model = SwinTransformer(img_size=224, patch_size=4, window_size=7)
+    pytorch_total_params = sum(p.numel() for p in model.parameters())
+    # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(pytorch_total_params)
     x = torch.randn((16,3,224,224))
     y = model(x)
     print(y.size())

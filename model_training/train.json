@@ -1,7 +1,7 @@
 {
   "n_gpu": 1,
   "base_dir": "model_training",
-  "lead_number": 8,
+  "lead_number": 12,
   "arch": {
     "type": "resnest",
     "args": {
@@ -20,8 +20,8 @@
   },
   "data_loader": {
     "batch_size": 128,
-    "resample_Fs": 300,
-    "window_size":3000,
+    "resample_Fs": 500,
+    "window_size":5000,
     "normalization": false,
     "augmentation": {
     "method": null,

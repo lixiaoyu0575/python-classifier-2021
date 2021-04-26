@@ -6,9 +6,9 @@
     "type": "swin_transformer",
     "args": {
       "depths": [
-        4,
-        4,
         2,
+        2,
+        6,
         2
       ],
       "num_heads": [
@@ -19,14 +19,15 @@
       ],
       "in_chans": 6,
       "embed_dim": 96,
-      "patch_size":4,
-      "window_size": 7
+      "patch_size":15,
+      "window_size": 5,
+      "img_size": 2400
     }
   },
   "data_loader": {
     "batch_size": 128,
-    "resample_Fs": 300,
-    "window_size":3584,
+    "resample_Fs": 250,
+    "window_size":2400,
     "normalization": false,
     "augmentation": {
     "method": null,

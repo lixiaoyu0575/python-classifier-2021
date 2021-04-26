@@ -74,6 +74,19 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     with open(config_json, 'r', encoding='utf8')as fp:
         config = json.load(fp)
     lead_number = config['lead_number']
+
+
+    scaler = torch.cuda.amp.GradScaler()
+
+    # Data_loader
+    train_loader = ChallengeDataLoader(data_directory, split_idx,
+                                       batch_size=config['data_loader']['batch_size'],
+                                       normalization=config['data_loader']['normalization'],
+                                       augmentations=config['data_loader']['augmentation']['method'],
+                                       p=config['data_loader']['augmentation']['prob'],
+                                       window_size=config['data_loader']['window_size'],
+                                       resample_Fs=config['data_loader']['resample_Fs'],
+                                       lead_number=lead_number)
     # Paths to save log, checkpoint, tensorboard logs and results
     base_dir = config['base_dir'] + '/training_results'
     result_dir, log_dir, checkpoint_dir, tb_dir = make_dirs(base_dir)
@@ -92,14 +105,6 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     train_writer = SummaryWriter(tb_dir + '/train_lead_' + str(lead_number))
     val_writer = SummaryWriter(tb_dir + '/valid_' + str(lead_number))
 
-    # Data_loader
-    train_loader = ChallengeDataLoader(data_directory, split_idx,
-                                       batch_size=config['data_loader']['batch_size'],
-                                       normalization=config['data_loader']['normalization'],
-                                       augmentations=config['data_loader']['augmentation']['method'],
-                                       p=config['data_loader']['augmentation']['prob'],
-                                       window_size=config['data_loader']['window_size'],
-                                       lead_number=lead_number)
 
     valid_loader = train_loader.valid_data_loader
 
@@ -150,7 +155,7 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
 
     for epoch in range(epochs):
         best = False
-        train_loss, train_metric = train(model, optimizer, train_loader, criterion, metric, indices, epoch,
+        train_loss, train_metric = train(model, optimizer, train_loader, criterion, metric, indices, epoch, scaler,
                                          device=device)
         val_loss, val_metric = valid(model, valid_loader, criterion, metric, indices, device=device)
 
@@ -414,25 +419,31 @@ def get_features(header, recording, leads):
 
     return age, sex, rms
 
-def train(model, optimizer, train_loader, criterion, metric, indices, epoch, device=None):
+def train(model, optimizer, train_loader, criterion, metric, indices, epoch, scaler, device=None):
     sigmoid = nn.Sigmoid()
     model.train()
     cc = 0
     Loss = 0
     total = 0
     batchs = 0
+
     for batch_idx, (data, target, class_weights) in enumerate(train_loader):
         batch_start = time.time()
-        data, target, class_weights = data.to(device), target.to(device), class_weights.to(device)
+        data, target, class_weights = data.to(device, dtype=torch.float16), target.to(device, dtype=torch.float16), class_weights.to(device, dtype=torch.float16)
         optimizer.zero_grad()
-        output = model(data)
+        # output = model(data)
+        with torch.cuda.amp.autocast():
+            output = model(data)
         if not indices is None:
             loss = criterion(output[:, indices], target[:, indices]) * class_weights[:, indices]
         else:
             loss = criterion(output, target) * class_weights
         loss = torch.mean(loss)
-        loss.backward()
-        optimizer.step()
+        # loss.backward()
+        # optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         c = metric(to_np(sigmoid(output), device), to_np(target, device))
         cc += c

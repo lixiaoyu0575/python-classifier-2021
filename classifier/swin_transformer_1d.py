@@ -474,7 +474,7 @@ class SwinTransformer(nn.Module):
 
     def __init__(self, img_size=224, patch_size=4, in_chans=3, num_classes=1000,
                  embed_dim=96, depths=[2, 2, 6, 2], num_heads=[3, 6, 12, 24],
-                 window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
+                 window_size=[7,7,7,7], mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
                  use_checkpoint=False, **kwargs):
@@ -513,7 +513,7 @@ class SwinTransformer(nn.Module):
                                input_resolution=patches_resolution // (2 ** i_layer),
                                depth=depths[i_layer],
                                num_heads=num_heads[i_layer],
-                               window_size=window_size,
+                               window_size=window_size[i_layer],
                                mlp_ratio=self.mlp_ratio,
                                qkv_bias=qkv_bias, qk_scale=qk_scale,
                                drop=drop_rate, attn_drop=attn_drop_rate,
@@ -576,7 +576,7 @@ class SwinTransformer(nn.Module):
 
 def swin_transformer(img_size=3584, patch_size=4, in_chans=2, num_classes=108,
                  embed_dim=96, depths=[2, 2, 6, 2], num_heads=[3, 6, 12, 24],
-                 window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
+                 window_size=[7,7,7,7], mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,):
     model = SwinTransformer(img_size=img_size, patch_size=patch_size, in_chans=in_chans, num_classes=num_classes,
                  embed_dim=embed_dim, depths=depths, num_heads=num_heads,

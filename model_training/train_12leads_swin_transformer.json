@@ -8,18 +8,14 @@
       "depths": [
         2,
         2,
-        2,
-        2,
-        2,
+        6,
         2
       ],
       "num_heads": [
         8,
-        8,
         16,
         16,
-        32,
-        32
+        24
       ],
       "in_chans": 8,
       "embed_dim": 96,
@@ -29,7 +25,7 @@
     }
   },
   "data_loader": {
-    "batch_size": 32,
+    "batch_size": 128,
     "resample_Fs": 250,
     "window_size":2400,
     "normalization": false,
@@ -42,7 +38,7 @@
   "optimizer": {
     "type": "AdamW",
     "args": {
-      "lr": 0.0005
+      "lr": 0.0001
     }
   },
   "loss": {

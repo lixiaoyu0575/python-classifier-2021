@@ -7,7 +7,7 @@ from scipy.io import loadmat, savemat
 import torch
 from torch.utils.data import Dataset
 import logging
-import neurokit as nk
+import neurokit2 as nk
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 import matplotlib.pyplot as plt
 
@@ -206,9 +206,18 @@ def resample(data, header_data, resample_Fs = 300):
     return resample_data
 
 def ecg_filling(ecg, sampling_rate, length):
-    ecg_II = ecg[1]
-    processed_ecg = nk.ecg_process(ecg_II, sampling_rate)
-    rpeaks = processed_ecg[1]['ECG_R_Peaks']
+    # try:
+    ecg_single_lead = ecg[0]
+        # processed_ecg = nk.ecg_process(ecg_II, sampling_rate)
+    cleaned = nk.ecg_clean(ecg_single_lead, sampling_rate=sampling_rate)
+    processed_ecg = nk.ecg_findpeaks(cleaned, sampling_rate=sampling_rate, method='neurokit')
+    # except:
+    #     ecg_single_lead = ecg[1]
+    #     # processed_ecg = nk.ecg_process(ecg_II, sampling_rate)
+    #     cleaned = nk.ecg_clean(ecg_single_lead, sampling_rate=sampling_rate)
+    #     processed_ecg = nk.ecg_findpeaks(cleaned, sampling_rate=sampling_rate)
+    rpeaks = processed_ecg['ECG_R_Peaks']
+    beats = nk.ecg_segment(cleaned, rpeaks, sampling_rate, True)
     ecg_filled = np.zeros((ecg.shape[0], length))
     sta = rpeaks[-1]
     ecg_filled[:, :sta] = ecg[:, :sta]
@@ -240,10 +249,14 @@ def slide_and_cut(data, n_segment=1, window_size=3000, sampling_rate=300):
     print("length:", length)
     if length < window_size:
         segments = []
-        try:
-            ecg_filled = ecg_filling(data, sampling_rate, window_size)
-        except:
-            ecg_filled = ecg_filling2(data, window_size)
+        # ecg_filled = ecg_filling(data, sampling_rate, window_size)
+
+        # try:
+        #     ecg_filled = ecg_filling(data, sampling_rate, window_size)
+        # except:
+        #     ecg_filled = ecg_filling2(data, window_size)
+        ecg_filled = np.zeros((data.shape[0], window_size))
+        ecg_filled[:, 0:length] = data
         segments.append(ecg_filled)
         segments = np.array(segments)
     else:
@@ -259,7 +272,6 @@ def slide_and_cut(data, n_segment=1, window_size=3000, sampling_rate=300):
             segment = data[:, ind:ind + window_size]
             segments.append(segment)
         segments = np.array(segments)
-
     return segments
 
 # split into training and validation

@@ -65,6 +65,7 @@ def training_code(data_directory, model_directory):
     training_root = 'model_training/'
     # configs = ['train_6leads.json', 'train_3leads.json', 'train_2leads.json', 'train.json']
     configs = ['train_2leads_swin_transformer.json']
+    # configs = ['train.json']
 
     for config_json_path in configs:
         train_model(training_root + config_json_path, split_idx, data_directory, model_directory)
@@ -73,7 +74,21 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     # Get training configs
     with open(config_json, 'r', encoding='utf8')as fp:
         config = json.load(fp)
+
     lead_number = config['lead_number']
+
+    # Data_loader
+    train_loader = ChallengeDataLoader(data_directory, split_idx,
+                                       batch_size=config['data_loader']['batch_size'],
+                                       normalization=config['data_loader']['normalization'],
+                                       augmentations=config['data_loader']['augmentation']['method'],
+                                       p=config['data_loader']['augmentation']['prob'],
+                                       window_size=config['data_loader']['window_size'],
+                                       resample_Fs=config['data_loader']['resample_Fs'],
+                                       lead_number=lead_number)
+
+    valid_loader = train_loader.valid_data_loader
+
     # Paths to save log, checkpoint, tensorboard logs and results
     base_dir = config['base_dir'] + '/training_results'
     result_dir, log_dir, checkpoint_dir, tb_dir = make_dirs(base_dir)
@@ -92,16 +107,6 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     train_writer = SummaryWriter(tb_dir + '/train_lead_' + str(lead_number))
     val_writer = SummaryWriter(tb_dir + '/valid_' + str(lead_number))
 
-    # Data_loader
-    train_loader = ChallengeDataLoader(data_directory, split_idx,
-                                       batch_size=config['data_loader']['batch_size'],
-                                       normalization=config['data_loader']['normalization'],
-                                       augmentations=config['data_loader']['augmentation']['method'],
-                                       p=config['data_loader']['augmentation']['prob'],
-                                       window_size=config['data_loader']['window_size'],
-                                       lead_number=lead_number)
-
-    valid_loader = train_loader.valid_data_loader
 
 
 

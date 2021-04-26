@@ -590,10 +590,13 @@ def swin_transformer(img_size=3584, patch_size=4, in_chans=2, num_classes=108,
 
 if __name__ == '__main__':
     # model = swin_transformer(in_chans=2, embed_dim=24, depths=[2, 2, 2, 2, 2,2,2,2], num_heads=[3, 6, 6, 12, 12,24,24,24], patch_size=7, window_size=4)
-    model = swin_transformer(img_size=2400, in_chans=2, embed_dim=24,
-                             depths=[2, 2, 6, 2], num_heads=[3, 6,12, 24],
-                             patch_size=3, window_size=5)
+    model = swin_transformer(img_size=2400, in_chans=2, embed_dim=96,
+                             depths=[2, 2, 6, 2], num_heads=[4, 8, 16, 32],
+                             patch_size=3, window_size=12)
     # x = torch.randn((16, 12, 3000))
-    x = torch.randn((16, 2, 2400))
+    x = torch.randn((128, 2, 2400))
+    pytorch_total_params = sum(p.numel() for p in model.parameters())
+    # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(pytorch_total_params)
     y = model(x)
     print(y.shape)

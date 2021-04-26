@@ -8,29 +8,26 @@
       "depths": [
         2,
         2,
-        2,
-        2,
-        2,
+        6,
         2
       ],
       "num_heads": [
-        8,
+        4,
         8,
         16,
-        16,
-        32,
         32
       ],
       "in_chans": 2,
       "embed_dim": 96,
-      "patch_size":7,
-      "window_size": 8
+      "patch_size":6,
+      "window_size": [13,13,13,13],
+      "img_size": 4992
     }
   },
   "data_loader": {
     "batch_size": 128,
-    "resample_Fs": 300,
-    "window_size":3584,
+    "resample_Fs": 100,
+    "window_size":4992,
     "normalization": false,
     "augmentation": {
     "method": null,

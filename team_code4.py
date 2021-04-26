@@ -74,6 +74,16 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     with open(config_json, 'r', encoding='utf8')as fp:
         config = json.load(fp)
     lead_number = config['lead_number']
+
+    # Data_loader
+    train_loader = ChallengeDataLoader(data_directory, split_idx,
+                                       batch_size=config['data_loader']['batch_size'],
+                                       normalization=config['data_loader']['normalization'],
+                                       augmentations=config['data_loader']['augmentation']['method'],
+                                       p=config['data_loader']['augmentation']['prob'],
+                                       window_size=config['data_loader']['window_size'],
+                                       resample_Fs=config['data_loader']['resample_Fs'],
+                                       lead_number=lead_number)
     # Paths to save log, checkpoint, tensorboard logs and results
     base_dir = config['base_dir'] + '/training_results'
     result_dir, log_dir, checkpoint_dir, tb_dir = make_dirs(base_dir)
@@ -91,15 +101,6 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     # Tensorboard
     train_writer = SummaryWriter(tb_dir + '/train_lead_' + str(lead_number))
     val_writer = SummaryWriter(tb_dir + '/valid_' + str(lead_number))
-
-    # Data_loader
-    train_loader = ChallengeDataLoader(data_directory, split_idx,
-                                       batch_size=config['data_loader']['batch_size'],
-                                       normalization=config['data_loader']['normalization'],
-                                       augmentations=config['data_loader']['augmentation']['method'],
-                                       p=config['data_loader']['augmentation']['prob'],
-                                       window_size=config['data_loader']['window_size'],
-                                       lead_number=lead_number)
 
     valid_loader = train_loader.valid_data_loader
 
