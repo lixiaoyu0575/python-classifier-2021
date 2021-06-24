@@ -1,12 +1,12 @@
 {
-    "name": "se_resnet_lr0.001_warmup_asl_onlyfilter_2leads",
+    "name": "se_resnet_lr0.001_checkwarmup_30epochs_checkasl_onlyfilter",
     "n_gpu": 1,
     "arch": {
         "type": "se_resnet",
         "args": {
             "num_classes": 26,
-            "layers": [2,3,2,2],
-            "channel_num": 2
+            "layers": [3,4,6,3],
+            "channel_num": 8
         }
     },
     "data_loader": {
@@ -20,7 +20,7 @@
             "num_workers": 0,
             "resample_Fs":500,
             "window_size":5000,
-            "lead_number": 2,
+            "lead_number": 8,
             "save_data": false,
             "n_segment":1,
             "load_saved_data": true

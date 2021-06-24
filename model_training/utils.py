@@ -7,7 +7,7 @@ from scipy.io import loadmat, savemat
 import torch
 from torch.utils.data import Dataset
 import logging
-import neurokit2 as nk
+# import neurokit2 as nk
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 import matplotlib.pyplot as plt
 
@@ -35,77 +35,42 @@ def load_label_files(label_directory):
         raise IOError('No label or output files found.')
 
 # Load labels from header/label files.
-def load_labels(label_files, normal_class, equivalent_classes_collection):
-    # The labels_onehot should have the following form:
+def load_labels(label_files, classes):
+    # The labels should have the following form:
     #
     # Dx: label_1, label_2, label_3
     #
     num_recordings = len(label_files)
+    num_classes = len(classes)
+
+    labels_onehot = np.zeros((num_recordings, num_classes), dtype=np.bool)
 
     # Load diagnoses.
     tmp_labels = list()
     for i in range(num_recordings):
+        name = label_files[i].split('/')[-1].split('.')[0]
         with open(label_files[i], 'r') as f:
             for l in f:
                 if l.startswith('#Dx'):
-                    dxs = set(arr.strip() for arr in l.split(': ')[1].split(','))
-                    tmp_labels.append(dxs)
-
-    # Identify classes.
-    classes = set.union(*map(set, tmp_labels))
-    if normal_class not in classes:
-        classes.add(normal_class)
-        print('- The normal class {} is not one of the label classes, so it has been automatically added, but please check that you chose the correct normal class.'.format(normal_class))
-    classes = sorted(classes)
-    num_classes = len(classes)
-
-    # Use one-hot encoding for labels.
-    labels_onehot = np.zeros((num_recordings, num_classes), dtype=np.bool)
-    for i in range(num_recordings):
-        dxs = tmp_labels[i]
-        for dx in dxs:
-            j = classes.index(dx)
-            labels_onehot[i, j] = 1
-
-    # For each set of equivalent class, use only one class as the representative class for the set and discard the other classes in the set.
-    # The label for the representative class is positive if any of the labels_onehot in the set is positive.
-    remove_classes = list()
-    remove_indices = list()
-    for equivalent_classes in equivalent_classes_collection:
-        equivalent_classes = [x for x in equivalent_classes if x in classes]
-        if len(equivalent_classes)>1:
-            representative_class = equivalent_classes[0]
-            other_classes = equivalent_classes[1:]
-            equivalent_indices = [classes.index(x) for x in equivalent_classes]
-            representative_index = equivalent_indices[0]
-            other_indices = equivalent_indices[1:]
-
-            labels_onehot[:, representative_index] = np.any(labels_onehot[:, equivalent_indices], axis=1)
-            remove_classes += other_classes
-            remove_indices += other_indices
-
-    for x in remove_classes:
-        classes.remove(x)
-    labels_onehot = np.delete(labels_onehot, remove_indices, axis=1)
-
-    # If the labels_onehot are negative for all classes, then change the label for the normal class to positive.
-    normal_index = classes.index(normal_class)
-    for i in range(num_recordings):
-        num_positive_classes = np.sum(labels_onehot[i, :])
-        if num_positive_classes==0:
-            labels_onehot[i, normal_index] = 1
-
-    labels = list()
-    for i in range(num_recordings):
-        class_list = []
-        for j in range(len(classes)):
-            if labels_onehot[i][j] == True:
-                class_list.append(classes[j])
-        class_set = set()
-        class_set.update(class_list)
-        labels.append(class_set)
-
-    return classes, labels_onehot, labels
+                    dxs = [arr.strip() for arr in l.split(': ')[1].split(',')]
+                    for dx in dxs:
+                        if dx in classes:
+                            if dx == "164909002":
+                                dx = "733534002"
+                            elif dx == "59118001":
+                                dx = "713427006"
+                            elif dx == "284470004":
+                                dx = "63593006"
+                            elif dx == "17338001":
+                                dx = "427172004"
+                            labels_onehot[i][classes.index(dx)] = 1
+                            # add LBBB and RBBB to BBB
+                            if dx == "733534002" or dx == "713427006":
+                                labels_onehot[i][classes.index("6374002")] = 1
+                            # deal with AF and AFL in Ningbo
+                            if dx == "164890007" and name[0] == 'J' and int(name[2:]) > 10646:
+                                labels_onehot[i][classes.index("164889003")] = 1
+    return labels_onehot
 
 # Load challenge data.
 def load_challenge_data(label_file, data_dir):
@@ -119,24 +84,27 @@ def load_challenge_data(label_file, data_dir):
     return recording, header, name
 
 # Load weights.
-def load_weights(weight_file, classes):
+def load_weights(weight_file):
     # Load the weight matrix.
     rows, cols, values = load_table(weight_file)
     assert(rows == cols)
-    num_rows = len(rows)
 
-    # Assign the entries of the weight matrix with rows and columns corresponding to the classes.
-    num_classes = len(classes)
-    weights = np.zeros((num_classes, num_classes), dtype=np.float64)
-    for i, a in enumerate(rows):
-        if a in classes:
-            k = classes.index(a)
-            for j, b in enumerate(rows):
-                if b in classes:
-                    l = classes.index(b)
-                    weights[k, l] = values[i, j]
+    # For each collection of equivalent classes, replace each class with the representative class for the set.
+    # rows = replace_equivalent_classes(rows, equivalent_classes)
 
-    return weights
+    # Check that equivalent classes have identical weights.
+    for j, x in enumerate(rows):
+        for k, y in enumerate(rows[j+1:]):
+            if x==y:
+                assert(np.all(values[j, :]==values[j+1+k, :]))
+                assert(np.all(values[:, j]==values[:, j+1+k]))
+
+    # Use representative classes.
+    classes = [x for j, x in enumerate(rows) if x not in rows[:j]]
+    indices = [rows.index(x) for x in classes]
+    weights = values[np.ix_(indices, indices)]
+
+    return classes, weights, indices
 
 # Load_table
 def load_table(table_file):
@@ -198,7 +166,7 @@ def resample(data, header_data, resample_Fs = 300):
 
     # divide adc_gain
     for ii in range(num_leads):
-        data[ii] /= gain_lead[ii]
+        data[ii] /= int(gain_lead[ii])
 
     resample_len = int(sample_len * (resample_Fs / sample_Fs))
     resample_data = signal.resample(data, resample_len, axis=1, window=None)
@@ -207,7 +175,7 @@ def resample(data, header_data, resample_Fs = 300):
 
 def ecg_filling(ecg, sampling_rate, length):
     # try:
-    ecg_single_lead = ecg[0]
+    ecg_single_lead = ecg[1]
         # processed_ecg = nk.ecg_process(ecg_II, sampling_rate)
     cleaned = nk.ecg_clean(ecg_single_lead, sampling_rate=sampling_rate)
     processed_ecg = nk.ecg_findpeaks(cleaned, sampling_rate=sampling_rate, method='neurokit')
@@ -217,6 +185,7 @@ def ecg_filling(ecg, sampling_rate, length):
     #     cleaned = nk.ecg_clean(ecg_single_lead, sampling_rate=sampling_rate)
     #     processed_ecg = nk.ecg_findpeaks(cleaned, sampling_rate=sampling_rate)
     rpeaks = processed_ecg['ECG_R_Peaks']
+
     beats = nk.ecg_segment(cleaned, rpeaks, sampling_rate, True)
     ecg_filled = np.zeros((ecg.shape[0], length))
     sta = rpeaks[-1]
@@ -244,22 +213,59 @@ def ecg_filling2(ecg, length):
 
     return ecg_filled
 
-def slide_and_cut(data, n_segment=1, window_size=3000, sampling_rate=300):
+import scipy
+def slide_and_cut_beat_aligned(data, n_segment=1, window_size=3000, sampling_rate=300):
+    channel_num, length = data.shape
+    ecg_single_lead = data[1]
+    # processed_ecg = nk.ecg_process(ecg_II, sampling_rate)
+    ecg2save = np.zeros((10, channel_num, 400))
+    info2save = np.zeros((10,))
+    # ecg2save = []
+    # info2save = []
+    cleaned = nk.ecg_clean(ecg_single_lead, sampling_rate=sampling_rate)
+    try:
+        processed_ecg = nk.ecg_findpeaks(cleaned, sampling_rate=sampling_rate, method='neurokit')
+        rpeaks = processed_ecg['ECG_R_Peaks']
+        # ecg_segments = nk.ecg_segment(cleaned, rpeaks=rpeaks, sampling_rate=sampling_rate)
+    except:
+        return None, None
+    for i in range(len(rpeaks) - 1):
+        # key = str(i+1)
+        # seg_values = ecg_segments[key].values
+        # indexes = seg_values[:, 1]
+        # start_index = indexes[0] if indexes[0] > 0 else 0
+        # end_index = indexes[-1]
+        start_index = rpeaks[i]
+        end_index = rpeaks[i+1]
+        beat = data[:, start_index:end_index]
+        resample_ratio = beat.shape[1] / 400
+        resampled_beat = scipy.signal.resample(beat, 400, axis=1) # Resample x to num samples using Fourier method along the given axis.
+        ecg2save[i] = resampled_beat
+        info2save[i] = resample_ratio
+        # ecg2save.append(resampled_beat)
+        # info2save.append(resample_ratio)
+        if i >= 9:
+            break
+    # ecg2save = np.array(ecg2save)
+    # info2save = np.array(info2save)
+    return ecg2save, info2save
+
+def slide_and_cut(data, n_segment=1, window_size=3000, sampling_rate=300, test_time_aug=False):
     length = data.shape[1]
     print("length:", length)
     if length < window_size:
         segments = []
-        # ecg_filled = ecg_filling(data, sampling_rate, window_size)
-
+        ecg_filled = np.zeros((data.shape[0], window_size))
+        ecg_filled[:, 0:length] = data[:, 0:length]
+        # ecg_filled = ecg_filling2(data, window_size)
         # try:
         #     ecg_filled = ecg_filling(data, sampling_rate, window_size)
         # except:
         #     ecg_filled = ecg_filling2(data, window_size)
-        ecg_filled = np.zeros((data.shape[0], window_size))
-        ecg_filled[:, 0:length] = data
         segments.append(ecg_filled)
         segments = np.array(segments)
-    else:
+    elif test_time_aug == False:
+        # print("not using test-time-aug")
         offset = (length - window_size * n_segment) / (n_segment + 1)
         if offset >= 0:
             start = 0 + offset
@@ -267,64 +273,70 @@ def slide_and_cut(data, n_segment=1, window_size=3000, sampling_rate=300):
             offset = (length - window_size * n_segment) / (n_segment - 1)
             start = 0
         segments = []
+        recording_count = 0
         for j in range(n_segment):
+            recording_count += 1
+            # print(recording_count)
             ind = int(start + j * (window_size + offset))
             segment = data[:, ind:ind + window_size]
             segments.append(segment)
         segments = np.array(segments)
+    elif test_time_aug == True:
+        # print("using test-time-aug")
+        ind = 0
+        rest_length = length
+        segments = []
+        recording_count = 0
+        while rest_length - ind >= window_size:
+            recording_count += 1
+            # print(recording_count)
+            segment = data[:, ind:ind + window_size]
+            segments.append(segment)
+            ind += int(window_size/2)
+        segments = np.array(segments)
     return segments
 
+
 # split into training and validation
-def stratification(label_dir):
-    print('Stratification...')
-
+def stratification(data_directory):
+    classes_2021 = "164889003,164890007,6374002,426627000,733534002,713427006,270492004,713426002,39732003,445118002,164947007,251146004,111975006,698252002,426783006,63593006,10370003,365413008,427172004,164917005,47665007,427393009,426177001,427084000,164934002,59931005"
+    ### equivalent SNOMED CT codes merged, noted as the larger one
+    classes_2021 = classes_2021.split(',')
     # Define the weights, the SNOMED CT code for the normal class, and equivalent SNOMED CT codes.
+    weights_file = 'weights.csv'
     normal_class = '426783006'
-    equivalent_classes = [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001']]
+    equivalent_classes = [['713427006', '59118001'], ['284470004', '63593006'], ['427172004', '17338001'],
+                          ['733534002', '164909002']]
 
+    # input_directory_label = '/DATASET/challenge2020/All_data'
+    # input_directory_label = '/data/ecg/raw_data/challenge2020/all_data_2021'
     # Find the label files.
-    label_files = load_label_files(label_dir)
+    print('Finding label and output files...')
+    label_files = load_label_files(data_directory)
 
     # Load the labels and classes.
-    label_classes, labels_onehot, labels = load_labels(label_files, normal_class, equivalent_classes)
-
-    temp = [[] for _ in range(len(labels_onehot))]
-    indexes, values = np.where(np.array(labels_onehot).astype(int) == 1)
-    for k, v in zip(indexes, values):
-       temp[k].append(v)
-    labels_int = temp
+    print('Loading labels and outputs...')
+    labels_onehot = load_labels(label_files, classes_2021)
 
     X = np.zeros(len(labels_onehot))
     y = labels_onehot
 
-    msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=0.15, random_state=0)
+    msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=0.1, train_size=0.9, random_state=0)
     for train_index, val_index in msss.split(X, y):
         X_train, X_val = X[train_index], X[val_index]
         y_train, y_val = y[train_index], y[val_index]
 
         print('Saving split index...')
-        datasets_distribution(labels_int, [train_index, val_index])
         savemat('model_training/split.mat', {'train_index': train_index, 'val_index': val_index})
 
     print('Stratification done.')
 
-def datasets_distribution(labels_int, indexs):
-   num_of_bins = 108
-   fig, axs = plt.subplots(len(indexs), 1, sharey=True, figsize=(50, 50))
-   for i in range(len(indexs)):
-      subdataset = list()
-      for j in indexs[i]:
-         for k in labels_int[j]:
-            subdataset.append(k)
-      subdataset = np.array(subdataset)
-      axs[i].hist(subdataset, bins=num_of_bins)
-   plt.show()
-
+import time
 # Training
 def make_dirs(base_dir):
 
     checkpoint_dir = base_dir + '/checkpoints'
-    log_dir = base_dir + '/log'
+    log_dir = base_dir + '/log_' + time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
     tb_dir = base_dir + '/tb_log'
     result_dir = base_dir + '/results'
 
@@ -371,14 +383,16 @@ def get_mnt_mode(trainer):
 
     return mnt_metric_name, mnt_mode, mnt_best, early_stop
 
-def save_checkpoint(model, epoch, mnt_best, checkpoint_dir, file_name, classes, save_best=True):
+def save_checkpoint(model, epoch, mnt_best, checkpoint_dir, file_name, classes, leads_num, config_json, save_best=True):
     arch = type(model).__name__
     state = {
         'arch': arch,
         'epoch': epoch,
         'state_dict': model.state_dict(),
         'monitor_best': mnt_best,
-        'classes': classes
+        'classes': classes,
+        'leads': leads_num,
+        'config': config_json
     }
 
     # save_path = checkpoint_dir + '/model_' + str(epoch) + '.pth'
@@ -436,22 +450,48 @@ def load_checkpoint(model, resume_path, logger):
     return model
 
 # Customed TensorDataset
-class CustomTensorDataset(Dataset):
+class CustomTensorDataset_BeatAligned(Dataset):
     """TensorDataset with support of transforms.
     """
     def __init__(self, *tensors, transform=None, p=0.5):
-        assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
+        # assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
         self.tensors = tensors
         self.transform = transform
         self.p = p
+
+    def __getitem__(self, index):
+        x = self.tensors[0][0][index]
+        x2 = self.tensors[0][1][index]
+        torch.randn(1)
+
+        if self.transform:
+            if torch.rand(1) >= self.p:
+                x = self.transform(x)
+
+        y = self.tensors[1][0][index]
+        y2 = self.tensors[1][1][index]
+        w = self.tensors[2][index]
+
+        return [x, x2], [y, y2], w
+
+    def __len__(self):
+        return self.tensors[0][0].size(0)
+
+# Customed TensorDataset
+class CustomTensorDataset(Dataset):
+    """TensorDataset with support of transforms.
+    """
+    def __init__(self, *tensors, transform=None):
+        assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
+        self.tensors = tensors
+        self.transform = transform
 
     def __getitem__(self, index):
         x = self.tensors[0][index]
         torch.randn(1)
 
         if self.transform:
-            if torch.rand(1) >= self.p:
-                x = self.transform(x)
+            x = self.transform(x)
 
         y = self.tensors[1][index]
         w = self.tensors[2][index]

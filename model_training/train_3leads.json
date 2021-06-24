@@ -1,65 +1,75 @@
 {
-  "n_gpu": 1,
-  "base_dir": "model_training",
-  "lead_number": 3,
-  "arch": {
-    "type": "resnest",
-    "args": {
-      "layers": [
-        2,
-        2,
-        1,
-        3
-      ],
-      "bottleneck_width": 24,
-      "stem_width": 16,
-      "num_classes": 108,
-      "kernel_size": 7,
-      "channel_num": 3
-    }
-  },
-  "data_loader": {
-    "batch_size": 128,
-    "resample_Fs": 300,
-    "window_size":3000,
-    "normalization": false,
-    "augmentation": {
-    "method": null,
-    "prob": 0.8
-  }
-  },
-
-  "optimizer": {
-    "type": "Adam",
-    "args": {
-      "lr": 0.003,
-      "weight_decay": 0,
-      "amsgrad": true
-    }
-  },
-  "loss": {
-    "type": "bce_with_logits_loss"
-  },
-  "metrics": [
-    "accuracy",
-    "f_measure",
-    "macro_f_beta_measure",
-    "macro_g_beta_measure",
-    "macro_auroc",
-    "macro_auprc",
-    "challenge_metric"
-  ],
-  "lr_scheduler": {
-    "type": "StepLR",
-    "args": {
-      "step_size": 15,
-      "gamma": 0.1
-    }
-  },
-  "trainer": {
-    "epochs": 1000,
-    "monitor": "max val_challenge_metric",
-    "early_stop": 10,
-    "only_scored": true
-  }
+    "name": "se_resnet_lr0.001_warmup_asl_onlyfilter_3leads",
+    "n_gpu": 1,
+    "arch": {
+        "type": "se_resnet",
+        "args": {
+            "num_classes": 26,
+            "layers": [2,3,4,2],
+            "channel_num": 3
+        }
+    },
+    "data_loader": {
+        "type": "ChallengeDataLoader",
+        "args": {
+            "label_dir": "/data/ecg/raw_data/challenge2020/all_data_2021",
+            "dir2save_data": "/data/ecg/challenge2021/data/",
+            "split_index": "process/data_split/split_2021_offline.mat",
+            "batch_size": 128,
+            "shuffle": true,
+            "num_workers": 0,
+            "resample_Fs":500,
+            "window_size":5000,
+            "lead_number": 3,
+            "save_data": false,
+            "n_segment":1,
+            "load_saved_data": true
+        }
+    },
+    "optimizer": {
+        "type": "AdamW",
+        "args": {
+            "lr": 0.0001
+        }
+    },
+    "loss": {
+        "type": "AsymmetricLossOptimized",
+        "args": {}
+    },
+    "lr_scheduler": {
+        "type": "warmup_cosine_lr",
+        "args": {
+            "max_epoch": 25,
+            "min_lr": 0,
+            "warm_epoch": 3,
+            "warm_multiplier": 10
+        }
+    },
+    "trainer": {
+        "epochs": 25,
+        "save_dir": "/data/ecg/challenge2021/saved/",
+        "save_period": 1,
+        "verbosity": 2,
+        "monitor": "max val_challenge_metric",
+        "early_stop": 25,
+        "tensorboard": true
+    },
+    "evaluater": {
+        "result_dir": "/data/ecg/challenge2021/saved/",
+        "verbosity": 2,
+        "visualization": {
+            "scatter": true
+        },
+        "n_segment": 1,
+        "test_time_aug": true
+    },
+    "metrics": [
+        "accuracy",
+        "f_measure",
+        "macro_f_beta_measure",
+        "macro_g_beta_measure",
+        "macro_auroc",
+        "macro_auprc",
+        "challenge_metric"
+    ]
 }

@@ -1,12 +1,12 @@
 {
-    "name": "se_resnet_lr0.001_warmup_asl_onlyfilter_2leads",
+    "name": "se_resnet_lr0.001_warmup_asl_onlyfilter_4leads",
     "n_gpu": 1,
     "arch": {
         "type": "se_resnet",
         "args": {
             "num_classes": 26,
-            "layers": [2,3,2,2],
-            "channel_num": 2
+            "layers": [3,4,2,3],
+            "channel_num": 4
         }
     },
     "data_loader": {
@@ -20,7 +20,7 @@
             "num_workers": 0,
             "resample_Fs":500,
             "window_size":5000,
-            "lead_number": 2,
+            "lead_number": 4,
             "save_data": false,
             "n_segment":1,
             "load_saved_data": true
@@ -51,7 +51,7 @@
         "save_period": 1,
         "verbosity": 2,
         "monitor": "max val_challenge_metric",
-        "early_stop": 25,
+        "early_stop": 30,
         "tensorboard": true
     },
     "evaluater": {

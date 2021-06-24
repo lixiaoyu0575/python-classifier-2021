@@ -5,7 +5,6 @@ scikit-learn==0.20.4
 joblib==0.14.1
 h5py==2.10.0
 iterative-stratification==0.1.6
-neurokit==0.2.0
 pandas==0.24.2
-tensorboardX==2.1
 PyWavelets==1.1.1
+neurokit2==0.1.2
