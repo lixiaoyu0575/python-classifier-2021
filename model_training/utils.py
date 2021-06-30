@@ -173,34 +173,6 @@ def resample(data, header_data, resample_Fs = 300):
 
     return resample_data
 
-def ecg_filling(ecg, sampling_rate, length):
-    # try:
-    ecg_single_lead = ecg[1]
-        # processed_ecg = nk.ecg_process(ecg_II, sampling_rate)
-    cleaned = nk.ecg_clean(ecg_single_lead, sampling_rate=sampling_rate)
-    processed_ecg = nk.ecg_findpeaks(cleaned, sampling_rate=sampling_rate, method='neurokit')
-    # except:
-    #     ecg_single_lead = ecg[1]
-    #     # processed_ecg = nk.ecg_process(ecg_II, sampling_rate)
-    #     cleaned = nk.ecg_clean(ecg_single_lead, sampling_rate=sampling_rate)
-    #     processed_ecg = nk.ecg_findpeaks(cleaned, sampling_rate=sampling_rate)
-    rpeaks = processed_ecg['ECG_R_Peaks']
-
-    beats = nk.ecg_segment(cleaned, rpeaks, sampling_rate, True)
-    ecg_filled = np.zeros((ecg.shape[0], length))
-    sta = rpeaks[-1]
-    ecg_filled[:, :sta] = ecg[:, :sta]
-    seg = ecg[:, rpeaks[0]:rpeaks[-1]]
-    len = seg.shape[1]
-    while True:
-        if (sta + len) >= length:
-            ecg_filled[:, sta: length] = seg[:, : length - sta]
-            break
-        else:
-            ecg_filled[:, sta: sta + len] = seg[:, :]
-            sta = sta + len
-    return ecg_filled
-
 def ecg_filling2(ecg, length):
     len = ecg.shape[1]
     ecg_filled = np.zeros((ecg.shape[0], length))
@@ -481,10 +453,11 @@ class CustomTensorDataset_BeatAligned(Dataset):
 class CustomTensorDataset(Dataset):
     """TensorDataset with support of transforms.
     """
-    def __init__(self, *tensors, transform=None):
+    def __init__(self, *tensors, transform=None, lead_number=12):
         assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
         self.tensors = tensors
         self.transform = transform
+        self.lead_number = lead_number
 
     def __getitem__(self, index):
         x = self.tensors[0][index]
@@ -495,6 +468,23 @@ class CustomTensorDataset(Dataset):
 
         y = self.tensors[1][index]
         w = self.tensors[2][index]
+
+
+        ### 12 leads order: I II III aVL aVR aVF V1 V2 V3 V4 V5 V6
+        if self.lead_number == 2:  # two leads: I II
+            leads_index = [0, 1]
+        elif self.lead_number == 3:  # three leads: I II V2
+            leads_index = [0, 1, 7]
+        elif self.lead_number == 4:  # four leads: I II III V2
+            leads_index = [0, 1, 2, 7]
+        elif self.lead_number == 6:  # six leads: I II III aVL aVR aVF
+            leads_index = [0, 1, 2, 3, 4, 5]
+        elif self.lead_number == 8:  # eight leads
+            leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
+        else:  # twelve leads
+            leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+        x = x[leads_index, :]
 
         return x, y, w
 

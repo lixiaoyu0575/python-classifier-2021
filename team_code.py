@@ -75,14 +75,18 @@ def training_code(data_directory, model_directory):
 
     #json files
     training_root = 'model_training/'
-    configs = ['train_6leads.json', 'train_4leads.json', 'train_3leads.json', 'train_2leads.json','train_12leads.json' ]
+    configs = ['train_12leads.json', 'train_6leads.json', 'train_4leads.json', 'train_3leads.json', 'train_2leads.json']
     # configs = ['train_resnet.json']
 
     # configs = ['train_beat_aligned_swin_transformer.json']
     # configs = ['train_12leads_nested_transformer.json']
 
+    challenge_dataset = ChallengeDataset(data_directory, split_idx,
+                        window_size=5000,
+                        resample_Fs=500)
+    train_dataset, val_dataset = challenge_dataset.train_dataset, challenge_dataset.val_dataset
     for config_json_path in configs:
-        train_model(training_root + config_json_path, split_idx, data_directory, model_directory)
+        train_model(training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset)
     #
     #
     # # Find header and recording files.
@@ -112,19 +116,18 @@ def training_code(data_directory, model_directory):
     # num_classes = len(classes)
 
 
-def train_model(config_json, split_idx, data_directory, model_directory ):
+def train_model(config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset):
     # Get training configs
     with open(config_json, 'r', encoding='utf8')as fp:
         config = json.load(fp)
     lead_number = config['data_loader']['args']['lead_number']
     assert config['arch']['args']['channel_num'] == lead_number
     # Data_loader
+    train_dataset.lead_number = lead_number
+    val_dataset.lead_number = lead_number
     print("batch_size: ", config['data_loader']['args']['batch_size'])
-    train_loader = ChallengeDataLoader(data_directory, split_idx,
-                                       batch_size=config['data_loader']['args']['batch_size'],
-                                       window_size=config['data_loader']['args']['window_size'],
-                                       resample_Fs=config['data_loader']['args']['resample_Fs'],
-                                       lead_number=lead_number)
+    train_loader = ChallengeDataLoader(train_dataset, val_dataset,
+                                       batch_size=config['data_loader']['args']['batch_size'])
     if lead_number == 8:
         lead_number = 12
     # Paths to save log, checkpoint, tensorboard logs and results
@@ -174,8 +177,7 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     # criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 
     # Get function handles of metrics
-    challenge_metrics = ChallengeMetric()
-    metric = challenge_metrics.challenge_metric
+    metric = ChallengeMetric()
 
     # Build optimizer, learning rate scheduler
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -187,6 +189,7 @@ def train_model(config_json, split_idx, data_directory, model_directory ):
     # Begin training process
     trainer = config['trainer']
     epochs = trainer['epochs']
+    # epochs = 1
 
     # Full train and valid logic
     mnt_metric_name, mnt_mode, mnt_best, early_stop = get_mnt_mode(trainer)
@@ -457,7 +460,10 @@ def train(model, optimizer, train_loader, criterion, metric, epoch, device=None)
         loss.backward()
         optimizer.step()
 
-        c = metric(to_np(sigmoid(output), device), to_np(target, device))
+        prediction = to_np(sigmoid(output), device)
+        prediction = metric.get_pred(prediction, alpha=0.5)
+        target = to_np(target, device)
+        c = metric.challenge_metric(prediction, target)
         cc += c
         Loss += float(loss)
         total += 1
@@ -490,7 +496,11 @@ def valid(model, valid_loader, criterion, metric, device=None):
             loss = criterion(output, target) * class_weights
             loss = torch.mean(loss)
             # loss = (loss_coarse + loss) / 2
-            c = metric(to_np(sigmoid(output), device), to_np(target, device))
+
+            prediction = to_np(sigmoid(output), device)
+            prediction = metric.get_pred(prediction, alpha=0.5)
+            target = to_np(target, device)
+            c = metric.challenge_metric(prediction, target)
             cc += c
             Loss += loss
             total += 1

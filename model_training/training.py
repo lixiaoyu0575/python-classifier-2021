@@ -67,7 +67,7 @@ class BaseDataLoader(DataLoader):
 
             self.test_data_loader.n_samples = len(self.test_dataset)
 
-class ChallengeDataLoader(BaseDataLoader):
+class ChallengeDataset():
     """
     challenge2020 data loading
     """
@@ -285,29 +285,43 @@ class ChallengeDataLoader(BaseDataLoader):
         X_val_class_weight = torch.from_numpy(val_class_weights).float()
         Y_val = torch.from_numpy(val_labels_onehot).float()
 
-        ### 12 leads order: I II III aVL aVR aVF V1 V2 V3 V4 V5 V6
-        if lead_number == 2:  # two leads: I II
-            leads_index = [0, 1]
-        elif lead_number == 3:  # three leads: I II V2
-            leads_index = [0, 1, 7]
-        elif lead_number == 4:  # four leads: I II III V2
-            leads_index = [0, 1, 2, 7]
-        elif lead_number == 6:  # six leads: I II III aVL aVR aVF
-            leads_index = [0, 1, 2, 3, 4, 5]
-        elif lead_number == 8:  # eight leads
-            leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
-        else:  # twelve leads
-            leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-
-        X_train = X_train[:, leads_index, :]
-        X_val = X_val[:, leads_index, :]
+        # have added this code into Dataset
+        # ### 12 leads order: I II III aVL aVR aVF V1 V2 V3 V4 V5 V6
+        # if lead_number == 2:  # two leads: I II
+        #     leads_index = [0, 1]
+        # elif lead_number == 3:  # three leads: I II V2
+        #     leads_index = [0, 1, 7]
+        # elif lead_number == 4:  # four leads: I II III V2
+        #     leads_index = [0, 1, 2, 7]
+        # elif lead_number == 6:  # six leads: I II III aVL aVR aVF
+        #     leads_index = [0, 1, 2, 3, 4, 5]
+        # elif lead_number == 8:  # eight leads
+        #     leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
+        # else:  # twelve leads
+        #     leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        #
+        # X_train = X_train[:, leads_index, :]
+        # X_val = X_val[:, leads_index, :]
 
         self.train_dataset = CustomTensorDataset(X_train, Y_train, X_train_class_weight)
         self.val_dataset = CustomTensorDataset(X_val, Y_val, X_val_class_weight)
 
         end = time.time()
         print('time to get and process data: {}'.format(end - start))
+        # super().__init__(self.train_dataset, self.val_dataset, None, batch_size, shuffle, num_workers)
+
+        # self.valid_data_loader.file_names = file_names
+        # self.valid_data_loader.idx = val_index
+
+class ChallengeDataLoader(BaseDataLoader):
+    """
+    challenge2020 data loading
+    """
+    def __init__(self, train_dataset, val_dataset, batch_size=128, shuffle=True, num_workers=0):
+        self.train_dataset = train_dataset
+        self.val_dataset = val_dataset
+
         super().__init__(self.train_dataset, self.val_dataset, None, batch_size, shuffle, num_workers)
 
-        self.valid_data_loader.file_names = file_names
-        self.valid_data_loader.idx = val_index
+        # self.valid_data_loader.file_names = file_names
+        # self.valid_data_loader.idx = val_index
