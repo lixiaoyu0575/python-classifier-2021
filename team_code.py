@@ -75,7 +75,11 @@ def training_code(data_directory, model_directory):
 
     #json files
     training_root = 'model_training/'
+<<<<<<< HEAD
     configs = ['train_12leads_test.json', 'train_6leads.json', 'train_4leads.json', 'train_3leads.json', 'train_2leads.json']
+=======
+    configs = ['train_12leads.json', 'train_6leads.json', 'train_4leads.json', 'train_3leads.json', 'train_2leads.json']
+>>>>>>> 3b1682dde26aec786854d0c06f69058abb87288c
     # configs = ['train_resnet.json']
 
     # configs = ['train_beat_aligned_swin_transformer.json']
