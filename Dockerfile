@@ -1,8 +1,8 @@
 FROM anibali/pytorch:cuda-10.1
 USER root
 #RUN sudo su
-#ENV NVIDIA_VISIBLE_DEVICES all
-#ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 #RUN chmod -R 777 /
 ## The MAINTAINER instruction sets the author field of the generated images.
 
