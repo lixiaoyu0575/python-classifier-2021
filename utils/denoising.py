@@ -30,8 +30,9 @@ def filter_and_detrend(data):
         # except ValueError:
         #     ##有些数据全是0，记录下来，无法进行detrend处理
         #     filtered_data[k] = WTfilt_1d(data[k])
-
-    return (filtered_data.values).T
+    filtered_data = (filtered_data.values).T
+    filtered_data[np.isnan(filtered_data)] = 0
+    return filtered_data
 #
 # class filter_and_detrend(object):
 #     """

@@ -72,7 +72,7 @@ class ChallengeDataset():
     challenge2020 data loading
     """
     def __init__(self, label_dir, split_index, batch_size=128, shuffle=True, num_workers=0, resample_Fs=500, window_size=5000, n_segment=1,
-                 normalization=False, training_size=None, augmentations=None, p=0.5, lead_number=12, save_data=False, load_saved_data=False):
+                 normalization=False, training_size=None, augmentations=None, p=0.5, lead_number=12, save_data=False, load_saved_data=True):
         self.label_dir = label_dir
         self.dir2save_data = '/data/ecg/challenge2021/data/'
         dir2save_data = '/data/ecg/challenge2021/data/'
@@ -103,15 +103,25 @@ class ChallengeDataset():
         # test_index = test_index.reshape((test_index.shape[1],))
 
         num_files = len(label_files)
-        train_recordings = list()
-        train_class_weights = list()
-        train_labels_onehot = list()
+        train_number = 0
+        val_number = 0
+        for i in range(num_files):
+            name = label_files[i].split('/')[-1].split('.')[0]
+            if i in train_index or name[0] == 'A' or name[0] == 'Q':
+                train_number += 1
+            elif i in val_index:
+                val_number += 1
+        print("train number: {}, val number: {}".format(train_number, val_number))
 
-        val_recordings = list()
-        val_class_weights = list()
-        val_labels_onehot = list()
+        train_recordings = np.zeros((train_number, 12, 5000), dtype=float)
+        train_class_weights = np.zeros((train_number, 26,), dtype=float)
+        train_labels_onehot = np.zeros((train_number, 26,), dtype=float)
 
-        file_names = list()
+        val_recordings = np.zeros((val_number, 12, 5000), dtype=float)
+        val_class_weights = np.zeros((val_number, 26,), dtype=float)
+        val_labels_onehot = np.zeros((val_number, 26,), dtype=float)
+
+        # file_names = list()
 
         ### class weights for datasets
         # equivalent diagnose [['713427006', '59118001'], ['63593006', '284470004'], ['427172004', '17338001'], ['733534002', '164909002']]
@@ -151,9 +161,10 @@ class ChallengeDataset():
         for cla in Ningbo_excluded_classes:
             Ningbo_class_weight[classes.index(cla)] = 0
 
-        original_recordings = []
         if load_saved_data == False:
             ### preprocess data and label
+            train_num = 0
+            val_num = 0
             for i in range(num_files):
                 print('{}/{}'.format(i + 1, num_files))
                 recording, header, name = load_challenge_data(label_files[i], label_dir)
@@ -186,27 +197,29 @@ class ChallengeDataset():
 
                 # slide and cut
                 recording = slide_and_cut(recording, n_segment, window_size, resample_Fs)
-                file_names.append(name)
+                # file_names.append(name)
                 if i in train_index or name[0] == 'A' or name[0] == 'Q':
-                    for j in range(recording.shape[0]):
-                        train_recordings.append(recording[j])
-                        train_labels_onehot.append(labels_onehot[i])
-                        train_class_weights.append(class_weight)
+                    for j in range(recording.shape[0]): # segment number = 1 -> j=0
+                        train_recordings[train_num] = recording[j]
+                        train_labels_onehot[train_num] = labels_onehot[i]
+                        train_class_weights[train_num] = class_weight
+                    train_num += 1
                 elif i in val_index:
                     for j in range(recording.shape[0]):
-                        val_recordings.append(recording[j])
-                        val_labels_onehot.append(labels_onehot[i])
-                        val_class_weights.append(class_weight)
+                        val_recordings[val_num] = recording[j]
+                        val_labels_onehot[val_num] = labels_onehot[i]
+                        val_class_weights[val_num] = class_weight
+                    val_num += 1
                 else:
                     pass
 
-            train_recordings = np.array(train_recordings)
-            train_class_weights = np.array(train_class_weights)
-            train_labels_onehot = np.array(train_labels_onehot)
-
-            val_recordings = np.array(val_recordings)
-            val_class_weights = np.array(val_class_weights)
-            val_labels_onehot = np.array(val_labels_onehot)
+            # train_recordings = np.array(train_recordings)
+            # train_class_weights = np.array(train_class_weights)
+            # train_labels_onehot = np.array(train_labels_onehot)
+            #
+            # val_recordings = np.array(val_recordings)
+            # val_class_weights = np.array(val_class_weights)
+            # val_labels_onehot = np.array(val_labels_onehot)
 
         else:
             train_recordings = np.load(os.path.join(dir2save_data, 'train_recordings_' + 'windowSize' + str(
@@ -252,11 +265,13 @@ class ChallengeDataset():
                                      resample_Fs) + '.npy'), val_labels_onehot)
             print('data saved!!!')
 
-        # Normalization
-        if normalization:
-            train_recordings = self.normalization(train_recordings)
-            val_recordings = self.normalization(val_recordings)
+        # # Normalization
+        # if normalization:
+        #     train_recordings = self.normalization(train_recordings)
+        #     val_recordings = self.normalization(val_recordings)
 
+        ### To check nan value
+        #
         # nan_files_train_num = 0
         # nan_files_val_num = 0
         # for i in range(len(train_recordings)):
@@ -272,20 +287,20 @@ class ChallengeDataset():
         # print("files number with nan value: ", nan_files_train_num, nan_files_val_num)
         # assert np.isnan(train_recordings).any() == False
         # assert np.isnan(val_recordings).any() == False
-        train_recordings[np.isnan(train_recordings)] = 0
-        val_recordings[np.isnan(val_recordings)] = 0
-        assert np.isnan(train_class_weights).any() == False
-        assert np.isnan(val_class_weights).any() == False
+        # train_recordings[np.isnan(train_recordings)] = 0
+        # val_recordings[np.isnan(val_recordings)] = 0
+        # assert np.isnan(train_class_weights).any() == False
+        # assert np.isnan(val_class_weights).any() == False
 
-        X_train = torch.from_numpy(train_recordings).float()
-        X_train_class_weight = torch.from_numpy(train_class_weights).float()
-        Y_train = torch.from_numpy(train_labels_onehot).float()
+        train_recordings = torch.from_numpy(train_recordings)
+        train_class_weights = torch.from_numpy(train_class_weights)
+        train_labels_onehot = torch.from_numpy(train_labels_onehot)
 
-        X_val = torch.from_numpy(val_recordings).float()
-        X_val_class_weight = torch.from_numpy(val_class_weights).float()
-        Y_val = torch.from_numpy(val_labels_onehot).float()
+        val_recordings = torch.from_numpy(val_recordings)
+        val_class_weights = torch.from_numpy(val_class_weights)
+        val_labels_onehot = torch.from_numpy(val_labels_onehot)
 
-        # have added this code into Dataset
+        # have moved this code into Dataset
         # ### 12 leads order: I II III aVL aVR aVF V1 V2 V3 V4 V5 V6
         # if lead_number == 2:  # two leads: I II
         #     leads_index = [0, 1]
@@ -303,8 +318,8 @@ class ChallengeDataset():
         # X_train = X_train[:, leads_index, :]
         # X_val = X_val[:, leads_index, :]
 
-        self.train_dataset = CustomTensorDataset(X_train, Y_train, X_train_class_weight)
-        self.val_dataset = CustomTensorDataset(X_val, Y_val, X_val_class_weight)
+        self.train_dataset = CustomTensorDataset(train_recordings, train_labels_onehot, train_class_weights)
+        self.val_dataset = CustomTensorDataset(val_recordings, val_labels_onehot, val_class_weights)
 
         end = time.time()
         print('time to get and process data: {}'.format(end - start))

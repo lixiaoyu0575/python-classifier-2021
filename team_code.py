@@ -177,7 +177,8 @@ def train_model(config_json, split_idx, data_directory, model_directory, train_d
     # criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 
     # Get function handles of metrics
-    metric = ChallengeMetric()
+    train_challenge_metric = ChallengeMetric()
+    val_challenge_metric = ChallengeMetric()
 
     # Build optimizer, learning rate scheduler
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -197,11 +198,11 @@ def train_model(config_json, split_idx, data_directory, model_directory, train_d
 
     for epoch in range(epochs):
         best = False
-        train_loss, train_metric = train(model, optimizer, train_loader, criterion, metric, epoch,
+        train_loss, train_metric = train(model, optimizer, train_loader, criterion, train_challenge_metric, epoch,
                                          device=device)
-        val_loss, val_metric = valid(model, valid_loader, criterion, metric, device=device)
+        val_loss, val_metric = valid(model, valid_loader, criterion, val_challenge_metric, device=device)
 
-        lr_scheduler.step(epoch)
+        lr_scheduler.step()
 
         logger.info(
             'Epoch:[{}/{}]\t {:10s}: {:.5f}\t {:10s}: {:.5f}'.format(epoch, epochs, 'loss', train_loss, 'metric',
@@ -238,7 +239,7 @@ def train_model(config_json, split_idx, data_directory, model_directory, train_d
         #
         # val_writer.add_scalar('loss', val_loss, epoch)
         # val_writer.add_scalar('metric', val_metric, epoch)
-    del model, train_loader, logger
+    del model, train_loader, logger, valid_loader
 
 ################################################################################
 #
@@ -288,7 +289,7 @@ def run_my_model(model, header, recording, config_path):
         leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
         recording = recording[:, leads_index, :]
     recording[np.isnan(recording)] = 0
-    data = torch.tensor(recording).to(device)
+    data = torch.tensor(recording)
     data = data.to(device, dtype=torch.float)
     output = model(data)
     prediction = torch.sigmoid(output)
@@ -450,7 +451,7 @@ def train(model, optimizer, train_loader, criterion, metric, epoch, device=None)
     batchs = 0
     for batch_idx, (data, target, class_weights) in enumerate(train_loader):
         batch_start = time.time()
-        data, target, class_weights = data.to(device), target.to(device), class_weights.to(device)
+        data, target, class_weights = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), class_weights.to(device, dtype=torch.float)
         # target_coarse = target_coarse.to(device)
         optimizer.zero_grad()
         output = model(data)
@@ -468,6 +469,10 @@ def train(model, optimizer, train_loader, criterion, metric, epoch, device=None)
         Loss += float(loss)
         total += 1
         batchs += 1
+
+        ### for debug
+        # if total > 50:
+        #     break
 
         if batch_idx % log_step == 0:
             batch_end = time.time()
@@ -489,7 +494,7 @@ def valid(model, valid_loader, criterion, metric, device=None):
     batchs = 0
     with torch.no_grad():
         for batch_idx, (data, target, class_weights) in enumerate(valid_loader):
-            data, target, class_weights = data.to(device), target.to(device), class_weights.to(device)
+            data, target, class_weights = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), class_weights.to(device, dtype=torch.float)
             # target_coarse = target_coarse.to(device)
             output = model(data)
 
