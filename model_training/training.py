@@ -72,7 +72,7 @@ class ChallengeDataset():
     challenge2020 data loading
     """
     def __init__(self, label_dir, split_index, batch_size=128, shuffle=True, num_workers=0, resample_Fs=500, window_size=5000, n_segment=1,
-                 normalization=False, training_size=None, augmentations=None, p=0.5, lead_number=12, save_data=False, load_saved_data=True):
+                 normalization=False, training_size=None, augmentations=None, p=0.5, lead_number=12, save_data=False, load_saved_data=False):
         self.label_dir = label_dir
         self.dir2save_data = '/data/ecg/challenge2021/data/'
         dir2save_data = '/data/ecg/challenge2021/data/'
