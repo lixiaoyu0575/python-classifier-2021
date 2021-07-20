@@ -7,6 +7,7 @@ from scipy import signal
 from scipy.io import loadmat, savemat
 import torch
 
+
 def is_number(x):
     try:
         float(x)
@@ -28,13 +29,15 @@ def my_find_challenge_files(label_directory):
     else:
         raise IOError('No label or output files found.')
 
+
 # For each set of equivalent classes, replace each class with the representative class for the set.
 def replace_equivalent_classes(classes, equivalent_classes):
     for j, x in enumerate(classes):
         for multiple_classes in equivalent_classes:
             if x in multiple_classes:
-                classes[j] = multiple_classes[0] # Use the first class as the representative class.
+                classes[j] = multiple_classes[0]  # Use the first class as the representative class.
     return classes
+
 
 # Load a table with row and column names.
 def load_table(table_file):
@@ -52,26 +55,26 @@ def load_table(table_file):
             table.append(arrs)
 
     # Define the numbers of rows and columns and check for errors.
-    num_rows = len(table)-1
-    if num_rows<1:
+    num_rows = len(table) - 1
+    if num_rows < 1:
         raise Exception('The table {} is empty.'.format(table_file))
 
-    num_cols = set(len(table[i])-1 for i in range(num_rows))
-    if len(num_cols)!=1:
+    num_cols = set(len(table[i]) - 1 for i in range(num_rows))
+    if len(num_cols) != 1:
         raise Exception('The table {} has rows with different lengths.'.format(table_file))
     num_cols = min(num_cols)
-    if num_cols<1:
+    if num_cols < 1:
         raise Exception('The table {} is empty.'.format(table_file))
 
     # Find the row and column labels.
-    rows = [table[0][j+1] for j in range(num_rows)]
-    cols = [table[i+1][0] for i in range(num_cols)]
+    rows = [table[0][j + 1] for j in range(num_rows)]
+    cols = [table[i + 1][0] for i in range(num_cols)]
 
     # Find the entries of the table.
     values = np.zeros((num_rows, num_cols), dtype=np.float64)
     for i in range(num_rows):
         for j in range(num_cols):
-            value = table[i+1][j+1]
+            value = table[i + 1][j + 1]
             if is_number(value):
                 values[i, j] = float(value)
             else:
@@ -79,21 +82,22 @@ def load_table(table_file):
 
     return rows, cols, values
 
+
 # Load weights.
 def load_weights(weight_file):
     # Load the weight matrix.
     rows, cols, values = load_table(weight_file)
-    assert(rows == cols)
+    assert (rows == cols)
 
     # For each collection of equivalent classes, replace each class with the representative class for the set.
     # rows = replace_equivalent_classes(rows, equivalent_classes)
 
     # Check that equivalent classes have identical weights.
     for j, x in enumerate(rows):
-        for k, y in enumerate(rows[j+1:]):
-            if x==y:
-                assert(np.all(values[j, :]==values[j+1+k, :]))
-                assert(np.all(values[:, j]==values[:, j+1+k]))
+        for k, y in enumerate(rows[j + 1:]):
+            if x == y:
+                assert (np.all(values[j, :] == values[j + 1 + k, :]))
+                assert (np.all(values[:, j] == values[:, j + 1 + k]))
 
     # Use representative classes.
     classes = [x for j, x in enumerate(rows) if x not in rows[:j]]
@@ -101,6 +105,7 @@ def load_weights(weight_file):
     weights = values[np.ix_(indices, indices)]
 
     return classes, weights, indices
+
 
 # Load labels from header/label files.
 def load_labels(label_files, classes):
@@ -122,15 +127,15 @@ def load_labels(label_files, classes):
                 if l.startswith('#Dx'):
                     dxs = [arr.strip() for arr in l.split(': ')[1].split(',')]
                     for dx in dxs:
+                        if dx == "164909002":
+                            dx = "733534002"
+                        elif dx == "59118001":
+                            dx = "713427006"
+                        elif dx == "284470004":
+                            dx = "63593006"
+                        elif dx == "17338001":
+                            dx = "427172004"
                         if dx in classes:
-                            if dx == "164909002":
-                                dx = "733534002"
-                            elif dx == "59118001":
-                                dx = "713427006"
-                            elif dx == "284470004":
-                                dx = "63593006"
-                            elif dx == "17338001":
-                                dx = "427172004"
                             labels_onehot[i][classes.index(dx)] = 1
                             # add LBBB and RBBB to BBB
                             if dx == "733534002" or dx == "713427006":
@@ -139,6 +144,7 @@ def load_labels(label_files, classes):
                             if dx == "164890007" and name[0] == 'J' and int(name[2:]) > 10646:
                                 labels_onehot[i][classes.index("164889003")] = 1
     return labels_onehot
+
 
 # Load outputs from output files.
 def load_outputs(output_files, classes, equivalent_classes):
@@ -159,27 +165,28 @@ def load_outputs(output_files, classes, equivalent_classes):
         with open(output_files[i], 'r') as f:
             lines = [l for l in f if l.strip() and not l.strip().startswith('#')]
             lengths = [len(l.split(',')) for l in lines]
-            if len(lines)>=3 and len(set(lengths))==1:
+            if len(lines) >= 3 and len(set(lengths)) == 1:
                 for j, l in enumerate(lines):
                     arrs = [arr.strip() for arr in l.split(',')]
-                    if j==0:
+                    if j == 0:
                         row = arrs
                         row = replace_equivalent_classes(row, equivalent_classes)
                         tmp_labels.append(row)
-                    elif j==1:
+                    elif j == 1:
                         row = list()
                         for arr in arrs:
                             number = 1 if arr in ('1', 'True', 'true', 'T', 't') else 0
                             row.append(number)
                         tmp_binary_outputs.append(row)
-                    elif j==2:
+                    elif j == 2:
                         row = list()
                         for arr in arrs:
                             number = float(arr) if is_number(arr) else 0
                             row.append(number)
                         tmp_scalar_outputs.append(row)
             else:
-                print('- The output file {} has formatting errors, so all outputs are assumed to be negative for this recording.'.format(output_files[i]))
+                print('- The output file {} has formatting errors, so all outputs are assumed to be negative for this recording.'.format(
+                    output_files[i]))
                 tmp_labels.append(list())
                 tmp_binary_outputs.append(list())
                 tmp_scalar_outputs.append(list())
@@ -192,7 +199,7 @@ def load_outputs(output_files, classes, equivalent_classes):
     for i in range(num_recordings):
         dxs = tmp_labels[i]
         for j, x in enumerate(classes):
-            indices = [k for k, y in enumerate(dxs) if x==y]
+            indices = [k for k, y in enumerate(dxs) if x == y]
             if indices:
                 binary_outputs[i, j] = np.any([tmp_binary_outputs[i][k] for k in indices])
                 tmp = [tmp_scalar_outputs[i][k] for k in indices]
@@ -210,7 +217,7 @@ def load_outputs(output_files, classes, equivalent_classes):
 
 def loaddata(data_path):
     ##TODO
-    #further modification
+    # further modification
     # data_path = '/data/weiyuhua/data/Challenge2018_500hz/preprocessed_data_new/'
     print("Loading data training set")
     with open(os.path.join(data_path, 'data_aug_train.pkl'), 'rb') as fin:
@@ -234,8 +241,10 @@ def loaddata(data_path):
 
     return (x_train, y_train), (x_val, y_val), (x_test, y_test)
 
+
 class ECGDatasetWithIndex(Dataset):
     '''Challenge 2017'''
+
     def __init__(self, X, Y):
         self.x, self.y = X, Y
 
@@ -249,6 +258,7 @@ class ECGDatasetWithIndex(Dataset):
 
         return sample
 
+
 # Find unique classes.
 def get_classes(input_directory, filenames):
     classes = set()
@@ -261,6 +271,7 @@ def get_classes(input_directory, filenames):
                         classes.add(c.strip())
     return sorted(classes)
 
+
 # Load challenge data.
 def load_challenge_data(label_file, data_dir):
     file = os.path.basename(label_file)
@@ -272,8 +283,9 @@ def load_challenge_data(label_file, data_dir):
     recording = np.asarray(x['val'], dtype=np.float64)
     return recording, header, name
 
+
 # Divide ADC_gain and resample
-def resample(data, header_data, resample_Fs = 300):
+def resample(data, header_data, resample_Fs=300):
     # get information from header_data
     tmp_hea = header_data[0].split(' ')
     ptID = tmp_hea[0]
@@ -283,7 +295,7 @@ def resample(data, header_data, resample_Fs = 300):
     gain_lead = np.zeros(num_leads)
 
     for ii in range(num_leads):
-        tmp_hea = header_data[ii+1].split(' ')
+        tmp_hea = header_data[ii + 1].split(' ')
         gain_lead[ii] = int(tmp_hea[2].split('/')[0])
 
     # divide adc_gain
@@ -295,15 +307,16 @@ def resample(data, header_data, resample_Fs = 300):
 
     return resample_data
 
+
 def ecg_filling2(ecg, length):
     len = ecg.shape[1]
     ecg_filled = np.zeros((ecg.shape[0], length))
     ecg_filled[:, :len] = ecg
     sta = len
     while length - sta > len:
-        ecg_filled[:, sta : sta + len] = ecg
+        ecg_filled[:, sta: sta + len] = ecg
         sta += len
-    ecg_filled[:, sta:length] = ecg[:, :length-sta]
+    ecg_filled[:, sta:length] = ecg[:, :length - sta]
 
     return ecg_filled
 
@@ -350,9 +363,10 @@ def slide_and_cut(data, n_segment=1, window_size=3000, sampling_rate=300, test_t
             # print(recording_count)
             segment = data[:, ind:ind + window_size]
             segments.append(segment)
-            ind += int(window_size/2)
+            ind += int(window_size / 2)
         segments = np.array(segments)
     return segments
+
 
 def custom_collate_fn(batch):
     data = [item[0].unsqueeze(0) for item in batch]

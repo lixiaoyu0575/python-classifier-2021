@@ -54,15 +54,15 @@ def load_labels(label_files, classes):
                 if l.startswith('#Dx'):
                     dxs = [arr.strip() for arr in l.split(': ')[1].split(',')]
                     for dx in dxs:
+                        if dx == "164909002":
+                            dx = "733534002"
+                        elif dx == "59118001":
+                            dx = "713427006"
+                        elif dx == "284470004":
+                            dx = "63593006"
+                        elif dx == "17338001":
+                            dx = "427172004"
                         if dx in classes:
-                            if dx == "164909002":
-                                dx = "733534002"
-                            elif dx == "59118001":
-                                dx = "713427006"
-                            elif dx == "284470004":
-                                dx = "63593006"
-                            elif dx == "17338001":
-                                dx = "427172004"
                             labels_onehot[i][classes.index(dx)] = 1
                             # add LBBB and RBBB to BBB
                             if dx == "733534002" or dx == "713427006":
@@ -285,6 +285,13 @@ def stratification(data_directory):
     # Find the label files.
     print('Finding label and output files...')
     label_files = load_label_files(data_directory)
+    label_files_tmp = []
+    for f in label_files:
+        fname = f.split('/')[-1].split('.')[0]
+        if fname[0] == 'A' or fname[0] == 'E':
+            continue
+        label_files_tmp.append(f)
+    label_files = label_files_tmp
 
     # Load the labels and classes.
     print('Loading labels and outputs...')

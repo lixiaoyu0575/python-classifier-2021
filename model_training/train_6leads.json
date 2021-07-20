@@ -23,7 +23,7 @@
             "lead_number": 6,
             "save_data": false,
             "n_segment":1,
-            "load_saved_data": true
+            "load_saved_data": false
         }
     },
     "optimizer": {
@@ -51,7 +51,7 @@
         "save_period": 1,
         "verbosity": 2,
         "monitor": "max val_challenge_metric",
-        "early_stop": 25,
+        "early_stop": 4,
         "tensorboard": true
     },
     "evaluater": {
