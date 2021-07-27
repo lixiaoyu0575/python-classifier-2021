@@ -78,48 +78,21 @@ def training_code(data_directory, model_directory):
     training_root = 'model_training/'
 
     configs = ['train_12leads.json', 'train_6leads.json', 'train_4leads.json', 'train_3leads.json', 'train_2leads.json']
-
-    # configs = ['train_resnet.json']
-
-    # configs = ['train_beat_aligned_swin_transformer.json']
-    # configs = ['train_12leads_nested_transformer.json']
-
+    # configs = ['train_12leads.json']
     challenge_dataset = ChallengeDataset(data_directory, split_idx, window_size=5000, resample_Fs=500)
     fine_tuning_dataset = FineTuningDataset(data_directory, fine_tuning_split_idx, window_size=5000, resample_Fs=500)
+    domain_dataset = Domain_Dataset(data_directory, fine_tuning_split_idx, window_size=5000, resample_Fs=500)
 
     train_dataset, val_dataset = challenge_dataset.train_dataset, challenge_dataset.val_dataset
     fine_tuning_train_dataset, fine_tuning_val_dataset = fine_tuning_dataset.train_dataset, fine_tuning_dataset.val_dataset
+    domain_train_dataset, domain_val_dataset = domain_dataset.train_dataset, domain_dataset.val_dataset
     for config_json_path in configs:
         train_model(training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset)
         fine_tuning_model(training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, fine_tuning_train_dataset,
                           fine_tuning_val_dataset)
+        domain_classification_model(training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, domain_train_dataset,
+                                    domain_val_dataset)
 
-    #
-    # # Find header and recording files.
-    # print('Finding header and recording files...')
-    #
-    # header_files, recording_files = find_challenge_files(data_directory)
-    # num_recordings = len(recording_files)
-    #
-    # if not num_recordings:
-    #     raise Exception('No data was provided.')
-    #
-    # # Create a folder for the model if it does not already exist.
-    # if not os.path.isdir(model_directory):
-    #     os.mkdir(model_directory)
-
-    # # Extract the classes from the dataset.
-    # print('Extracting classes...')
-    #
-    # classes = set()
-    # for header_file in header_files:
-    #     header = load_header(header_file)
-    #     classes |= set(get_labels(header))
-    # if all(is_integer(x) for x in classes):
-    #     classes = sorted(classes, key=lambda x: int(x)) # Sort classes numerically if numbers.
-    # else:
-    #     classes = sorted(classes) # Sort classes alphanumerically if not numbers.
-    # num_classes = len(classes)
 
 
 def train_model(config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset):
@@ -373,6 +346,119 @@ def fine_tuning_model(config_json, split_idx, data_directory, model_directory, t
     del model, train_loader, logger, valid_loader
 
 
+def domain_classification_model(config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset):
+    # Get training configs
+    with open(config_json, 'r', encoding='utf8')as fp:
+        config = json.load(fp)
+    config["arch"]['args']['num_classes'] = 2
+    lead_number = config['data_loader']['args']['lead_number']
+    assert config['arch']['args']['channel_num'] == lead_number
+    # Data_loader
+    train_dataset.lead_number = lead_number
+    val_dataset.lead_number = lead_number
+    print("batch_size: ", config['data_loader']['args']['batch_size'])
+    train_loader = ChallengeDataLoader(train_dataset, val_dataset,
+                                       batch_size=config['data_loader']['args']['batch_size'])
+    if lead_number == 8:
+        lead_number = 12
+    # Paths to save log, checkpoint, tensorboard logs and results
+    base_dir = 'model_training/training_results'
+    result_dir, log_dir, checkpoint_dir, tb_dir = make_dirs(base_dir)
+
+    # Build model architecture
+    # global model
+    for file, types in files_models.items():
+        for type in types:
+            if config["arch"]["type"] == type:
+                model = init_obj(config, 'arch', eval("module_arch_" + file))
+    model.to(device)
+    # Logger for train
+    logger = get_logger(log_dir + '/info_lead_' + str(lead_number) + '.log', name='train')
+    logger.info(config["arch"]["type"])
+
+    valid_loader = train_loader.valid_data_loader
+
+    header_files = my_find_challenge_files(data_directory)
+    classes = set()
+    for header_file in header_files:
+        header = load_header(header_file)
+        classes |= set(get_labels(header))
+    if all(is_integer(x) for x in classes):
+        classes = sorted(classes, key=lambda x: int(x))  # Sort classes numerically if numbers.
+    else:
+        classes = sorted(classes)  # Sort classes alphanumerically if not numbers.
+    num_classes = len(classes)
+    train_loader.all_classes = classes
+
+    criterion = AsymmetricLossOptimized()
+
+    # Get function handles of metrics
+    train_challenge_metric = ChallengeMetric()
+    val_challenge_metric = ChallengeMetric()
+
+    # Build optimizer, learning rate scheduler
+    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+
+    optimizer = init_obj(config, 'optimizer', torch.optim, trainable_params)
+
+    lr_scheduler = init_obj(config, 'lr_scheduler', custom_lr_scheduler, optimizer)
+
+    # Begin training process
+    trainer = config['trainer']
+    epochs = trainer['epochs']
+    # epochs = 1
+
+    # Full train and valid logic
+    mnt_metric_name, mnt_mode, mnt_best, early_stop = get_mnt_mode(trainer)
+    not_improved_count = 0
+
+    for epoch in range(epochs):
+        best = False
+        train_loss, train_metric = train_domain(model, optimizer, train_loader, criterion, train_challenge_metric, epoch,
+                                                device=device)
+        val_loss, val_metric = valid_domain(model, valid_loader, criterion, val_challenge_metric, device=device)
+
+        lr_scheduler.step()
+
+        logger.info(
+            'Epoch:[{}/{}]\t {:10s}: {:.5f}\t {:10s}: {:.5f}'.format(epoch, epochs, 'loss', train_loss, 'metric',
+                                                                     train_metric))
+        logger.info(
+            '             \t {:10s}: {:.5f}\t {:10s}: {:.5f}'.format('val_loss', val_loss, 'val_metric', val_metric))
+        logger.info('             \t learning_rate: {}'.format(optimizer.param_groups[0]['lr']))
+
+        # check whether model performance improved or not, according to specified metric(mnt_metric)
+        if mnt_mode != 'off':
+            mnt_metric = val_loss if mnt_metric_name == 'val_loss' else val_metric
+            improved = (mnt_mode == 'min' and mnt_metric <= mnt_best) or \
+                       (mnt_mode == 'max' and mnt_metric >= mnt_best)
+            if improved:
+                mnt_best = mnt_metric
+                not_improved_count = 0
+                best = True
+            else:
+                not_improved_count += 1
+
+            if not_improved_count > early_stop:
+                logger.info("Validation performance didn\'t improve for {} epochs. Training stops.".format(early_stop))
+                break
+        file_name = 'lead_' + str(lead_number) + '_domain_model_best.pth'
+        # save_checkpoint(model, epoch, mnt_best, checkpoint_dir, file_name, save_best=False)
+        if best == True:
+            save_checkpoint(model, epoch, mnt_best, model_directory, file_name, train_loader.all_classes, leads_num=lead_number,
+                            config_json=config_json, save_best=True)
+            logger.info("Saving current best: {}".format(file_name))
+
+        # Tensorboard log
+        # train_writer.add_scalar('loss', train_loss, epoch)
+        # train_writer.add_scalar('metric', train_metric, epoch)
+        # train_writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], epoch)
+        #
+        # val_writer.add_scalar('loss', val_loss, epoch)
+        # val_writer.add_scalar('metric', val_metric, epoch)
+    del model, train_loader, logger, valid_loader
+
+
 ################################################################################
 #
 # Running trained model function
@@ -382,7 +468,8 @@ def fine_tuning_model(config_json, split_idx, data_directory, model_directory, t
 # Run your trained model. This function is *required*. You should edit this function to add your code, but do *not* change the arguments of this function.
 
 
-def run_my_model(model, header, recording, config_path):
+def run_my_model(model_list, header, recording, config_path):
+    model_domain, model = model_list[0], model_list[1]
     recording[np.isnan(recording)] = 0
     recording = np.array(recording, dtype=float)
     with open(config_path, 'r', encoding='utf8')as fp:
@@ -423,6 +510,10 @@ def run_my_model(model, header, recording, config_path):
     recording[np.isnan(recording)] = 0
     data = torch.tensor(recording)
     data = data.to(device, dtype=torch.float)
+    output_domain = torch.sigmoid(model_domain(data))
+    output_domain = output_domain.detach().cpu().numpy()
+    output_domain = np.mean(output_domain, axis=0)
+
     output = model(data)
     prediction = torch.sigmoid(output)
     prediction = prediction.detach().cpu().numpy()
@@ -434,8 +525,11 @@ def run_my_model(model, header, recording, config_path):
     all_classes = my_classes
 
     label = np.zeros((26,), dtype=int)
-
-    threshold = 0.5
+    if output_domain[0] > 0.5:
+        prediction[[1, 3, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]] = 0
+        threshold = 0.4
+    else:
+        threshold = 0.5
     indexes = np.where(prediction > threshold)
     label[indexes] += 1
 
@@ -458,25 +552,14 @@ def run_my_model(model, header, recording, config_path):
             ind = all_classes.index(dx2)
             label_output[ind] = label[i]
             prediction_output[ind] = prediction[i]
-        if dx == "733534002" or dx == "713427006":
-            ind = all_classes.index("6374002")
-            if label[i] == 1:
-                label_output[ind] = label[i]
-                prediction_output[ind] = prediction[i]
-    #
-    # data = torch.tensor(recording)
-    # data = torch.reshape(data, (1, 12, window_size))
-    # data = data.to(device, dtype=torch.float)
-    # prediction = model(data)
-    # prediction = torch.reshape(prediction, (108,))
-    # prediction = torch.sigmoid(prediction)
-    # prediction = prediction.detach().cpu().numpy()
-    # label = np.zeros((108,), dtype=int)
-    # threshold = 0.5
-    # indexes = np.where(prediction > threshold)
-    # label[indexes] += 1
-    # # print(prediction)
-    # classes = my_classes
+        # if dx == "733534002" or dx == "713427006":
+        #     ind = all_classes.index("6374002")
+        #     if label[i] == 1:
+        #         label_output[ind] = label[i]
+        #         prediction_output[ind] = prediction[i]
+    for dx2 in ["6374002"]:
+        label_output[all_classes.index(dx2)] = 0
+        prediction_output[all_classes.index(dx2)] = 0
     return all_classes, label_output, prediction_output
 
 
@@ -510,10 +593,15 @@ def load_model(model_directory, leads):
     global current_config_json
     current_config_json = config_json
 
+    checkpoint_domain_path = model_directory + '/lead_' + str(leads_num) + '_domain_model_best.pth'
+    model_domain = load_my_model(config, checkpoint_domain_path)
+    model_domain.eval()
+
+    config["arch"]['args']['num_classes'] = 26
     checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best.pth'
     model = load_my_model(config, checkpoint_path)
     model.eval()
-    return model
+    return [model_domain, model]
 
 
 def load_my_model(config, checkpoint_path=None):
@@ -647,6 +735,81 @@ def valid(model, valid_loader, criterion, metric, device=None):
             prediction = metric.get_pred(prediction, alpha=0.5)
             target = to_np(target, device)
             c = metric.challenge_metric(prediction, target)
+            cc += c
+            Loss += loss
+            total += 1
+            batchs += 1
+
+    return Loss / total, cc / batchs
+
+
+def train_domain(model, optimizer, train_loader, criterion, metric, epoch, device=None):
+    sigmoid = nn.Sigmoid()
+    model.train()
+    cc = 0
+    Loss = 0
+    total = 0
+    batchs = 0
+    for batch_idx, (data, target, class_weights) in enumerate(train_loader):
+        batch_start = time.time()
+        data, target, class_weights = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), class_weights.to(device,
+                                                                                                                                 dtype=torch.float)
+        # target_coarse = target_coarse.to(device)
+        optimizer.zero_grad()
+        output = model(data)
+
+        loss = criterion(output, target) * class_weights
+        loss = torch.mean(loss)
+        loss.backward()
+        optimizer.step()
+
+        prediction = to_np(sigmoid(output), device)
+        prediction = metric.get_pred(prediction, alpha=0.5)
+        target = to_np(target, device)
+        c = metric.accuracy(prediction, target)
+        cc += c
+        Loss += float(loss)
+        total += 1
+        batchs += 1
+
+        ### for debug
+        # if total > 50:
+        #     break
+
+        if batch_idx % log_step == 0:
+            batch_end = time.time()
+            # logger.debug('Epoch: {} {} Loss: {:.6f}, 1 batch cost time {:.2f}'.format(epoch, batch_idx, loss.item(),
+            #                                                                           batch_end - batch_start))
+            print('Train Epoch: {} {} Loss: {:.6f}, 1 batch cost time {:.2f}'.format(epoch,
+                                                                                     batch_idx,
+                                                                                     loss.item(),
+                                                                                     batch_end - batch_start))
+
+    return Loss / total, cc / batchs
+
+
+def valid_domain(model, valid_loader, criterion, metric, device=None):
+    sigmoid = nn.Sigmoid()
+    model.eval()
+    cc = 0
+    Loss = 0
+    total = 0
+    batchs = 0
+    with torch.no_grad():
+        for batch_idx, (data, target, class_weights) in enumerate(valid_loader):
+            data, target, class_weights = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), class_weights.to(device,
+                                                                                                                                     dtype=torch.float)
+            # target_coarse = target_coarse.to(device)
+            output = model(data)
+
+            loss = criterion(output, target) * class_weights
+            loss = torch.mean(loss)
+            # loss = (loss_coarse + loss) / 2
+
+            prediction = to_np(sigmoid(output), device)
+            prediction = metric.get_pred(prediction, alpha=0.5)
+            target = to_np(target, device)
+            c = metric.accuracy(prediction, target)
             cc += c
             Loss += loss
             total += 1

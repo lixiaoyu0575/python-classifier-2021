@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv1d(in_planes, out_planes, kernel_size=7, stride=stride, padding=3, bias=False)
 
@@ -19,14 +20,7 @@ class BasicBlock(nn.Module):
         self.stride = stride
         self.dropout = nn.Dropout(.2)
 
-        if planes == 64:
-            self.globalAvgPool = nn.AvgPool1d(1250, stride=1)
-        elif planes == 128:
-            self.globalAvgPool = nn.AvgPool1d(625, stride=1)
-        elif planes == 256:
-            self.globalAvgPool = nn.AvgPool1d(313, stride=1)
-        elif planes == 512:
-            self.globalAvgPool = nn.AvgPool1d(157, stride=1)
+        self.globalAvgPool = nn.AdaptiveAvgPool1d(1)
 
         self.fc1 = nn.Linear(in_features=planes, out_features=round(planes / 16))
         self.fc2 = nn.Linear(in_features=round(planes / 16), out_features=planes)
@@ -60,7 +54,7 @@ class BasicBlock(nn.Module):
 
 
 class SE_ResNet(nn.Module):
-    def __init__(self, layers=[3,4,6,3], num_classes=26, channel_num=8):
+    def __init__(self, layers=[3, 4, 6, 3], num_classes=26, channel_num=8):
         super(SE_ResNet, self).__init__()
         block = BasicBlock
         self.inplanes = 64
@@ -103,20 +97,18 @@ class SE_ResNet(nn.Module):
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
 
-        # x3 = torch.cat([x, x2], dim=1)
-        x3 = self.relu(x)
-        x4 = self.fc(x3)
-        return x4
+        x = self.fc(x)
+        return x
 
 
-
-def se_resnet(layers=[3,4,6,3], num_classes=26, channel_num=8):
+def se_resnet(layers=[3, 4, 6, 3], num_classes=26, channel_num=8):
     model = SE_ResNet(layers=layers, num_classes=num_classes, channel_num=channel_num)
     return model
 
+
 if __name__ == '__main__':
-    model = se_resnet(layers=[3,4,6,3], num_classes=26)
+    model = se_resnet(layers=[3, 4, 6, 3], num_classes=26)
     # x = torch.randn((16, 12, 3000))
-    x = torch.randn((16, 8, 5000))
+    x = torch.randn((16, 8, 7500))
     y = model(x)
     print(y.shape)
