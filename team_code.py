@@ -593,14 +593,17 @@ def load_model(model_directory, leads):
     global current_config_json
     current_config_json = config_json
 
+    checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best.pth'
+    model = load_my_model(config, checkpoint_path)
+    model.eval()
+
+    config["arch"]['args']['num_classes'] = 2
     checkpoint_domain_path = model_directory + '/lead_' + str(leads_num) + '_domain_model_best.pth'
     model_domain = load_my_model(config, checkpoint_domain_path)
     model_domain.eval()
 
-    config["arch"]['args']['num_classes'] = 26
-    checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best.pth'
-    model = load_my_model(config, checkpoint_path)
-    model.eval()
+
+
     return [model_domain, model]
 
 
