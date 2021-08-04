@@ -285,13 +285,13 @@ def stratification(data_directory):
     # Find the label files.
     print('Finding label and output files...')
     label_files = load_label_files(data_directory)
-    label_files_tmp = []
-    for f in label_files:
-        fname = f.split('/')[-1].split('.')[0]
-        if fname[0] == 'A' or fname[0] == 'E':
-            continue
-        label_files_tmp.append(f)
-    label_files = label_files_tmp
+    # label_files_tmp = []
+    # for f in label_files:
+    #     fname = f.split('/')[-1].split('.')[0]
+    #     if fname[0] == 'A' or fname[0] == 'E':
+    #         continue
+    #     label_files_tmp.append(f)
+    # label_files = label_files_tmp
 
     # Load the labels and classes.
     print('Loading labels and outputs...')

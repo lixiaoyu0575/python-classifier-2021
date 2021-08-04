@@ -525,11 +525,9 @@ def run_my_model(model_list, header, recording, config_path):
     all_classes = my_classes
 
     label = np.zeros((26,), dtype=int)
-    if output_domain[0] > 0.8:
-        prediction[[1, 3, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]] = 0
-        threshold = 0.45
-    else:
-        threshold = 0.5
+    if output_domain[0] > 0.7:
+        prediction[[1, 2, 3, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]] = 0
+    threshold = 0.5
     indexes = np.where(prediction > threshold)
     label[indexes] += 1
 
@@ -560,6 +558,7 @@ def run_my_model(model_list, header, recording, config_path):
     for dx2 in ["6374002"]:
         label_output[all_classes.index(dx2)] = 0
         prediction_output[all_classes.index(dx2)] = 0
+    label_output[all_classes.index("426783006")] = (label_output[all_classes.index("426783006")] > threshold) | ((label_output > threshold).sum() == 0)
     return all_classes, label_output, prediction_output
 
 

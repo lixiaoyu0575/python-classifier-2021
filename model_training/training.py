@@ -94,13 +94,13 @@ class ChallengeDataset():
         # Load the label and output files.
         print('Loading label and output files...')
         label_files = my_find_challenge_files(label_dir)
-        label_files_tmp = []
-        for f in label_files:
-            fname = f.split('/')[-1].split('.')[0]
-            if fname[0] == 'A' or fname[0] == 'E':
-                continue
-            label_files_tmp.append(f)
-        label_files = label_files_tmp
+        # label_files_tmp = []
+        # for f in label_files:
+        #     fname = f.split('/')[-1].split('.')[0]
+        #     if fname[0] == 'A' or fname[0] == 'E':
+        #         continue
+        #     label_files_tmp.append(f)
+        # label_files = label_files_tmp
 
         labels_onehot = load_labels(label_files, classes)
 
