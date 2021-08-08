@@ -530,7 +530,7 @@ def run_my_model(model_list, header, recording, config_path):
     recording[np.isnan(recording)] = 0
     data = torch.tensor(recording)
     data = data.to(device, dtype=torch.float)
-    output_domain = torch.softmax(model_domain(data))
+    output_domain = torch.softmax(model_domain(data), dim=1)
     output_domain = output_domain.detach().cpu().numpy()
     output_domain = np.mean(output_domain, axis=0)
 
@@ -545,7 +545,7 @@ def run_my_model(model_list, header, recording, config_path):
     all_classes = my_classes
 
     label = np.zeros((26,), dtype=int)
-    if output_domain[0] > 0.7:
+    if output_domain[0] > 0.5:
         prediction[[1, 2, 3, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]] = 0
     threshold = 0.5
     indexes = np.where(prediction > threshold)
@@ -575,9 +575,9 @@ def run_my_model(model_list, header, recording, config_path):
         #     if label[i] == 1:
         #         label_output[ind] = label[i]
         #         prediction_output[ind] = prediction[i]
-    for dx2 in ["6374002"]: # ???
-        label_output[all_classes.index(dx2)] = 0
-        prediction_output[all_classes.index(dx2)] = 0
+    # for dx2 in ["6374002"]: # BBB->0???
+    #     label_output[all_classes.index(dx2)] = 0
+    #     prediction_output[all_classes.index(dx2)] = 0
     label_output[all_classes.index("426783006")] = (label_output[all_classes.index("426783006")] > threshold) | ((label_output > threshold).sum() == 0)
     if label_output[-1] == 1: # if TInv, then TAb
         label_output[-2] = 1
@@ -768,7 +768,7 @@ def valid(model, valid_loader, criterion, metric, device=None):
 
 
 def train_domain(model, optimizer, train_loader, criterion, metric, epoch, device=None):
-    sigmoid = nn.Sigmoid()
+    softmax = nn.Softmax(dim=1)
     model.train()
     cc = 0
     Loss = 0
@@ -787,7 +787,7 @@ def train_domain(model, optimizer, train_loader, criterion, metric, epoch, devic
         loss.backward()
         optimizer.step()
 
-        prediction = to_np(sigmoid(output), device)
+        prediction = to_np(softmax(output), device)
         prediction = metric.get_pred(prediction, alpha=0.5)
         target = to_np(target, device)
         c = metric.accuracy(prediction, target)

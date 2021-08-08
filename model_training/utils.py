@@ -456,6 +456,28 @@ class CustomTensorDataset_BeatAligned(Dataset):
     def __len__(self):
         return self.tensors[0][0].size(0)
 
+class Transformation:
+    def __init__(self, *args, **kwargs):
+        self.params = kwargs
+
+    def get_params(self):
+        return self.params
+class TChannelResize(Transformation):
+    """Scale amplitude of sample (per channel) by random factor in given magnitude range"""
+
+    def __init__(self, magnitude_range=[0.33, 3]):
+        magnitude_range = (magnitude_range[0], magnitude_range[1])
+        super(TChannelResize, self).__init__(magnitude_range=magnitude_range)
+        self.log_magnitude_range = torch.log(torch.tensor(magnitude_range).float())
+
+    def __call__(self, sample):
+        data = sample.T
+        timesteps, channels = data.shape
+        resize_factors = torch.exp(torch.empty(channels).uniform_(*self.log_magnitude_range))
+        resize_factors_same_shape = resize_factors.repeat(timesteps).reshape(data.shape)
+        data = resize_factors_same_shape * data
+        return data.T
+
 # Customed TensorDataset
 class CustomTensorDataset(Dataset):
     """TensorDataset with support of transforms.
@@ -465,10 +487,13 @@ class CustomTensorDataset(Dataset):
         self.tensors = tensors
         self.transform = transform
         self.lead_number = lead_number
+        self.channel_resize = TChannelResize()
 
     def __getitem__(self, index):
         x = self.tensors[0][index]
         torch.randn(1)
+
+        x = self.channel_resize(x)
 
         if self.transform:
             x = self.transform(x)
