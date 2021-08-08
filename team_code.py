@@ -507,6 +507,26 @@ def run_my_model(model_list, header, recording, config_path):
     if config["arch"]["args"]["channel_num"] == 8:
         leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
         recording = recording[:, leads_index, :]
+    if config["arch"]["args"]["channel_num"] == 6:
+        leads_index = [0, 1, 2, 3, 4, 5]
+    if config["arch"]["args"]["channel_num"] == 4:
+        leads_index = [0, 1, 2, 7]
+    if config["arch"]["args"]["channel_num"] == 3:
+        leads_index = [0, 1, 7]
+    if config["arch"]["args"]["channel_num"] == 2:
+        leads_index = [0, 1]
+    mean = np.array([0.00050089, 0.00183124, 0.00133577, -0.00046871, -0.00107951, 0.00090612, -0.00015399, 0.00148074,
+            0.00154823, 0.00181218, 0.00147534, -0.0007556])
+    std = np.array([0.1486738, 0.16724882, 0.15792687, 0.13628339, 0.1278433, 0.14510326, 0.2309965, 0.35442008,
+           0.35938853, 0.36613631, 0.36772795, 0.37447661])
+    mean = mean[leads_index]
+    std = std[leads_index]
+    for i in range(len(recording)):
+        data = recording[i].swapaxes(0, 1)
+        data_scaled = data - mean
+        data_scaled /= std
+        data_scaled = data_scaled.swapaxes(0, 1)
+        recording[i] = data_scaled
     recording[np.isnan(recording)] = 0
     data = torch.tensor(recording)
     data = data.to(device, dtype=torch.float)

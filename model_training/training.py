@@ -219,10 +219,8 @@ class ChallengeDataset():
             else:
                 pass
 
-        # # Normalization
-        # if normalization:
-        #     train_recordings = self.normalization(train_recordings)
-        #     val_recordings = self.normalization(val_recordings)
+        train_recordings = self.normalization(train_recordings)
+        val_recordings = self.normalization(val_recordings)
 
         train_recordings = torch.from_numpy(train_recordings)
         train_class_weights = torch.from_numpy(train_class_weights)
@@ -237,7 +235,18 @@ class ChallengeDataset():
 
         end = time.time()
         print('time to get and process data: {}'.format(end - start))
-
+    def normalization(self, X):
+        mean = [0.00050089, 0.00183124, 0.00133577, -0.00046871, -0.00107951, 0.00090612, -0.00015399, 0.00148074,
+                 0.00154823, 0.00181218, 0.00147534, -0.0007556]
+        std = [0.1486738, 0.16724882, 0.15792687, 0.13628339, 0.1278433, 0.14510326, 0.2309965, 0.35442008,
+                 0.35938853, 0.36613631, 0.36772795, 0.37447661]
+        for i in range(len(X)):
+            data = X[i].swapaxes(0, 1)
+            data_scaled = data - mean
+            data_scaled /= std
+            data_scaled = data_scaled.swapaxes(0, 1)
+            X[i] = data_scaled
+        return X
 
 class FineTuningDataset():
     """
@@ -388,6 +397,8 @@ class FineTuningDataset():
                 val_num += 1
             else:
                 pass
+        train_recordings = self.normalization(train_recordings)
+        val_recordings = self.normalization(val_recordings)
 
         train_recordings = torch.from_numpy(train_recordings)
         train_class_weights = torch.from_numpy(train_class_weights)
@@ -403,6 +414,18 @@ class FineTuningDataset():
         end = time.time()
         print('time to get and process data: {}'.format(end - start))
 
+    def normalization(self, X):
+        mean = [0.00050089, 0.00183124, 0.00133577, -0.00046871, -0.00107951, 0.00090612, -0.00015399, 0.00148074,
+                 0.00154823, 0.00181218, 0.00147534, -0.0007556]
+        std = [0.1486738, 0.16724882, 0.15792687, 0.13628339, 0.1278433, 0.14510326, 0.2309965, 0.35442008,
+                 0.35938853, 0.36613631, 0.36772795, 0.37447661]
+        for i in range(len(X)):
+            data = X[i].swapaxes(0, 1)
+            data_scaled = data - mean
+            data_scaled /= std
+            data_scaled = data_scaled.swapaxes(0, 1)
+            X[i] = data_scaled
+        return X
 
 class Domain_Dataset():
     """
@@ -508,6 +531,9 @@ class Domain_Dataset():
             else:
                 pass
 
+        train_recordings = self.normalization(train_recordings)
+        val_recordings = self.normalization(val_recordings)
+
         train_recordings = torch.from_numpy(train_recordings)
         train_class_weights = torch.from_numpy(train_class_weights)
         train_labels_onehot = torch.from_numpy(train_labels_onehot)
@@ -521,7 +547,18 @@ class Domain_Dataset():
 
         end = time.time()
         print('time to get and process data: {}'.format(end - start))
-
+    def normalization(self, X):
+        mean = [0.00050089, 0.00183124, 0.00133577, -0.00046871, -0.00107951, 0.00090612, -0.00015399, 0.00148074,
+                 0.00154823, 0.00181218, 0.00147534, -0.0007556]
+        std = [0.1486738, 0.16724882, 0.15792687, 0.13628339, 0.1278433, 0.14510326, 0.2309965, 0.35442008,
+                 0.35938853, 0.36613631, 0.36772795, 0.37447661]
+        for i in range(len(X)):
+            data = X[i].swapaxes(0, 1)
+            data_scaled = data - mean
+            data_scaled /= std
+            data_scaled = data_scaled.swapaxes(0, 1)
+            X[i] = data_scaled
+        return X
 
 class ChallengeDataLoader(BaseDataLoader):
     """
