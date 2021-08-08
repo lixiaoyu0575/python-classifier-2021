@@ -39,10 +39,10 @@
     "lr_scheduler": {
         "type": "warmup_cosine_lr",
         "args": {
-            "max_epoch": 25,
+            "max_epoch":30,
             "min_lr": 0,
             "warm_epoch": 3,
-            "warm_multiplier": 10
+            "warm_multiplier": 3
         }
     },
     "trainer": {
@@ -51,7 +51,7 @@
         "save_period": 1,
         "verbosity": 2,
         "monitor": "max val_challenge_metric",
-        "early_stop": 4,
+        "early_stop": 5,
         "tensorboard": true
     },
     "evaluater": {
