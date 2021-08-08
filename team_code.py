@@ -530,7 +530,7 @@ def run_my_model(model_list, header, recording, config_path):
     recording[np.isnan(recording)] = 0
     data = torch.tensor(recording)
     data = data.to(device, dtype=torch.float)
-    output_domain = torch.sigmoid(model_domain(data))
+    output_domain = torch.softmax(model_domain(data))
     output_domain = output_domain.detach().cpu().numpy()
     output_domain = np.mean(output_domain, axis=0)
 
