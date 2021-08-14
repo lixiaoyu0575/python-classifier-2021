@@ -555,9 +555,9 @@ def run_my_model(model_list, header, recording, config_path):
         #     if label[i] == 1:
         #         label_output[ind] = label[i]
         #         prediction_output[ind] = prediction[i]
-    for dx2 in ["6374002"]:
-        label_output[all_classes.index(dx2)] = 0
-        prediction_output[all_classes.index(dx2)] = 0
+    # for dx2 in ["6374002"]:
+    #     label_output[all_classes.index(dx2)] = 0
+    #     prediction_output[all_classes.index(dx2)] = 0
     label_output[all_classes.index("426783006")] = (label_output[all_classes.index("426783006")] > threshold) | ((label_output > threshold).sum() == 0)
     return all_classes, label_output, prediction_output
 
