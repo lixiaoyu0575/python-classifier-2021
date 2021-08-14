@@ -79,9 +79,9 @@ def training_code(data_directory, model_directory):
 
     configs = ['train_12leads.json', 'train_6leads.json', 'train_4leads.json', 'train_3leads.json', 'train_2leads.json']
     # configs = ['train_12leads.json']
-    challenge_dataset = ChallengeDataset(data_directory, split_idx, window_size=5000, resample_Fs=500)
-    fine_tuning_dataset = FineTuningDataset(data_directory, fine_tuning_split_idx, window_size=5000, resample_Fs=500)
-    domain_dataset = Domain_Dataset(data_directory, fine_tuning_split_idx, window_size=5000, resample_Fs=500)
+    challenge_dataset = ChallengeDataset(data_directory, split_idx, window_size=2500, resample_Fs=250)
+    fine_tuning_dataset = FineTuningDataset(data_directory, fine_tuning_split_idx, window_size=2500, resample_Fs=250)
+    domain_dataset = Domain_Dataset(data_directory, fine_tuning_split_idx, window_size=2500, resample_Fs=250)
 
     train_dataset, val_dataset = challenge_dataset.train_dataset, challenge_dataset.val_dataset
     fine_tuning_train_dataset, fine_tuning_val_dataset = fine_tuning_dataset.train_dataset, fine_tuning_dataset.val_dataset
@@ -525,7 +525,7 @@ def run_my_model(model_list, header, recording, config_path):
     all_classes = my_classes
 
     label = np.zeros((26,), dtype=int)
-    if output_domain[0] > 0.7:
+    if output_domain[0] > 0.8:
         prediction[[1, 2, 3, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]] = 0
     threshold = 0.5
     indexes = np.where(prediction > threshold)
