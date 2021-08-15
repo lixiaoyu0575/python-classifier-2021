@@ -42,14 +42,14 @@
     "lr_scheduler": {
         "type": "warmup_cosine_lr",
         "args": {
-            "max_epoch": 30,
+            "max_epoch": 50,
             "min_lr": 0,
             "warm_epoch": 3,
             "warm_multiplier": 3
         }
     },
     "trainer": {
-        "epochs": 1,
+        "epochs": 20,
         "save_dir": "/data/ecg/challenge2021/saved/",
         "save_period": 1,
         "verbosity": 2,

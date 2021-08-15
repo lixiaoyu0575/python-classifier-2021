@@ -176,7 +176,7 @@ def se_resnet(layers=[3, 4, 6, 3], num_classes=26, channel_num=8):
     model = SE_ResNet(layers=layers, num_classes=num_classes, channel_num=channel_num)
     return model
 
-def se_resnet_peak_detection_tmp(layers=[3,4,6,3], num_classes=26, channel_num=8, drop_block_size=None, input_length=4992, hidden=512, use_dense=False):
+def se_resnet_peak_detection_tmp(layers=[3,4,6,3], num_classes=26, channel_num=8, drop_block_size=None, input_length=4992, hidden=512, use_dense=True):
     model = SE_ResNet_Peak_Detection_Tmp(layers=layers, num_classes=num_classes, channel_num=channel_num, drop_block_size=drop_block_size, input_length=input_length, hidden=hidden, use_dense=use_dense)
     return model
 

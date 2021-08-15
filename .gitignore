@@ -111,6 +111,6 @@ datasets/
 .idea/
 __MACOSX/
 configs/custom
-*.npy
+#*.npy
 ./analysis/data
 .DS_Store

@@ -102,7 +102,9 @@ def training_code(data_directory, model_directory):
         train_model(model, training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=0, peak_loss_ratio=1)
         model.load_state_dict(
             torch.load(model_directory + '/lead_2_pretrain_model_best.pth')['state_dict'])
+        config['lr_scheduler']['args']['max_epoch']=20
         train_model(model, training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002)
+        config['lr_scheduler']['args']['max_epoch'] = 20
         model.load_state_dict(
             torch.load(model_directory + '/lead_2_pretrain_model_best.pth')['state_dict'])
         fine_tuning_model(model, training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, fine_tuning_train_dataset,
@@ -479,6 +481,8 @@ def run_my_model(model_list, header, recording, config_path):
     # divide ADC_gain and resample
     resample_Fs = 500
     window_size = 5000
+    if config["arch"]["args"]["channel_num"] == 2:
+        window_size = 4992
     header = header.split('\n')
     recording1 = copy.deepcopy(recording)
     recording1 = resample(recording1, header, resample_Fs)
@@ -500,7 +504,10 @@ def run_my_model(model_list, header, recording, config_path):
     output_domain = torch.sigmoid(model_domain(data))
     output_domain = output_domain.detach().cpu().numpy()
     output_domain = np.mean(output_domain, axis=0)
-    output = model_500Hz_10s(data)
+    if config["arch"]["args"]["channel_num"] == 2:
+        output, _ = model_500Hz_10s(data)
+    else:
+        output = model_500Hz_10s(data)
     prediction1 = torch.sigmoid(output)
     prediction1 = prediction1.detach().cpu().numpy()
     prediction1 = np.expand_dims(np.max(prediction1, axis=0),axis=0)
@@ -509,6 +516,8 @@ def run_my_model(model_list, header, recording, config_path):
     # divide ADC_gain and resample
     resample_Fs = 500
     window_size = 7500
+    if config["arch"]["args"]["channel_num"] == 2:
+        window_size = 4992
     recording2 = copy.deepcopy(recording)
     recording2 = resample(recording2, header, resample_Fs)
 
@@ -525,8 +534,10 @@ def run_my_model(model_list, header, recording, config_path):
     recording2[np.isnan(recording2)] = 0
     data = torch.tensor(recording2)
     data = data.to(device, dtype=torch.float)
-
-    output = model_500Hz_15s(data)
+    if config["arch"]["args"]["channel_num"] == 2:
+        output, _ = model_500Hz_15s(data)
+    else:
+        output = model_500Hz_15s(data)
     prediction2 = torch.sigmoid(output)
     prediction2 = prediction2.detach().cpu().numpy()
     prediction2 = np.expand_dims(np.max(prediction2, axis=0),axis=0)
@@ -550,6 +561,8 @@ def run_my_model(model_list, header, recording, config_path):
     elif config["arch"]["args"]["channel_num"] == 4:
         threshold = 0.5
     elif config["arch"]["args"]["channel_num"] == 3:
+        threshold = 0.5
+    elif config["arch"]["args"]["channel_num"] == 2:
         threshold = 0.5
     else:
         threshold = 0.4
@@ -621,7 +634,7 @@ def load_model(model_directory, leads):
     if leads_num == 4:
         checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_pretrain_model_best_500Hz_10s.pth'
     elif leads_num == 2:
-        checkpoint_path = 'lead_2_model_best.pth'
+        checkpoint_path = model_directory + '/lead_2_model_best.pth'
     else:
         checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best_500Hz_10s.pth'
     model1 = load_my_model(config, checkpoint_path)
@@ -631,13 +644,15 @@ def load_model(model_directory, leads):
     if leads_num == 4:
         checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_pretrain_model_best_500Hz_15s.pth'
     elif leads_num == 2:
-        checkpoint_path = 'lead_2_model_best.pth'
+        checkpoint_path = model_directory + '/lead_2_model_best.pth'
     else:
         checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best_500Hz_15s.pth'
     model2 = load_my_model(config, checkpoint_path)
     model2.eval()
     print(checkpoint_path)
 
+    if leads_num == 2:
+        config['arch']['type'] = 'se_resnet'
     config["arch"]['args']['num_classes'] = 2
     checkpoint_domain_path = model_directory + '/lead_' + str(leads_num) + '_domain_model_best.pth'
     model_domain = load_my_model(config, checkpoint_domain_path)

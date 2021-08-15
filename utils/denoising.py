@@ -24,7 +24,10 @@ def filter_and_detrend(data):
     num_leads = len(data)
     filtered_data = pd.DataFrame()
     for k in range(num_leads):
-        filtered_data[k] = WTfilt_1d(data[k])
+        if np.sum(data[k]) == 0:
+            filtered_data[k] = data[k]
+        else:
+            filtered_data[k] = WTfilt_1d(data[k])
         # try:
         #     filtered_data[k] = scipy.signal.detrend(WTfilt_1d(data[k]))
         # except ValueError:
