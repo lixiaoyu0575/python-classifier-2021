@@ -224,7 +224,7 @@ def slide_and_cut_beat_aligned(data, n_segment=1, window_size=3000, sampling_rat
 
 def slide_and_cut(data, n_segment=1, window_size=3000, sampling_rate=300, test_time_aug=False):
     length = data.shape[1]
-    print("length:", length)
+    # print("length:", length)
     if length < window_size:
         segments = []
         ecg_filled = np.zeros((data.shape[0], window_size))
