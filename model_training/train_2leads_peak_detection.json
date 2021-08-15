@@ -6,10 +6,7 @@
         "args": {
             "num_classes": 26,
             "layers": [2,3,2,2],
-            "input_length": 4992,
-            "channel_num": 2,
-            "hidden": 512,
-            "use_dense": true
+            "channel_num": 2
         }
     },
     "data_loader": {
@@ -49,11 +46,11 @@
         }
     },
     "trainer": {
-        "epochs": 20,
+        "epochs": 50,
         "save_dir": "/data/ecg/challenge2021/saved/",
         "save_period": 1,
         "verbosity": 2,
-        "monitor": "max val_challenge_metric",
+        "monitor": "min val_loss",
         "early_stop": 4,
         "tensorboard": true
     },

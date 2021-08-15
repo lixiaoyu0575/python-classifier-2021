@@ -99,24 +99,29 @@ def training_code(data_directory, model_directory):
                     model = init_obj(config, 'arch', eval("module_arch_" + file))
         model.to(device)
 
-        train_model(model, training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=0, peak_loss_ratio=1)
+        ## pretrain, peak detection
+        train_model(model, config, training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=0, peak_loss_ratio=1)
         model.load_state_dict(
             torch.load(model_directory + '/lead_2_pretrain_model_best.pth')['state_dict'])
         config['lr_scheduler']['args']['max_epoch']=20
-        train_model(model, training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002)
-        config['lr_scheduler']['args']['max_epoch'] = 20
+        config['trainer']['epochs']=20
+        config['trainer']['monitor']='max val_challenge_metric'
+
+        ## pretrain on all data
+        train_model(model, config, training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002)
+        config['lr_scheduler']['args']['max_epoch']=20
+        config['trainer']['epochs']=20
         model.load_state_dict(
             torch.load(model_directory + '/lead_2_pretrain_model_best.pth')['state_dict'])
-        fine_tuning_model(model, training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, fine_tuning_train_dataset,
+
+        ## pretrain on CPSC and GA
+        fine_tuning_model(model, config, training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, fine_tuning_train_dataset,
                           fine_tuning_val_dataset, class_loss_ratio=0.1, peak_loss_ratio=0.0002)
         # domain_classification_model(training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, domain_train_dataset,
         #                             domain_val_dataset)
 
 
-def train_model(model, config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002):
-    # Get training configs
-    with open(config_json, 'r', encoding='utf8')as fp:
-        config = json.load(fp)
+def train_model(model, config, config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002):
     lead_number = config['data_loader']['args']['lead_number']
     assert config['arch']['args']['channel_num'] == lead_number
     # Data_loader
@@ -223,10 +228,10 @@ def train_model(model, config_json, split_idx, data_directory, model_directory, 
     # del model, train_loader, logger, valid_loader
 
 
-def fine_tuning_model(model, config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002):
+def fine_tuning_model(model, config, config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002):
     # Get training configs
-    with open(config_json, 'r', encoding='utf8')as fp:
-        config = json.load(fp)
+    # with open(config_json, 'r', encoding='utf8')as fp:
+    #     config = json.load(fp)
     lead_number = config['data_loader']['args']['lead_number']
     assert config['arch']['args']['channel_num'] == lead_number
     # Data_loader
@@ -598,6 +603,8 @@ def run_my_model(model_list, header, recording, config_path):
     #     prediction_output[all_classes.index(dx2)] = 0
     label_output[all_classes.index("426783006")] = (label_output[all_classes.index("426783006")] > threshold) | (
             (label_output > threshold).sum() == 0)
+    label_output[all_classes.index("164934002")] = (label_output[all_classes.index("164934002")] > threshold) | (
+                label_output[all_classes.index("59931005")] > threshold)
     return all_classes, label_output, prediction_output
 
 

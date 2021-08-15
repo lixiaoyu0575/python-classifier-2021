@@ -652,8 +652,8 @@ class FineTuningDataset_2(BaseDataLoader):
         # Dataset = eval(dataset_name)
 
         #tmp
-        label_files_train = label_files_train[0:1000]
-        label_files_val = label_files_val[0:1000]
+        # label_files_train = label_files_train[0:300]
+        # label_files_val = label_files_val[0:300]
         self.train_dataset = CustomDataset4PeakDetection(label_files_train, label_train, label_dir, leads_index, sample_rate=resample_Fs,
                                            transform=train_transforms)
         self.val_dataset = CustomDataset4PeakDetection(label_files_val, label_val, label_dir, leads_index, sample_rate=resample_Fs, transform=val_transforms)
@@ -776,8 +776,8 @@ class ChallengeDataset_2(BaseDataLoader):
         # Dataset = eval(dataset_name)
 
         #tmp
-        label_files_train = label_files_train[0:1000]
-        label_files_val = label_files_val[0:1000]
+        # label_files_train = label_files_train[0:300]
+        # label_files_val = label_files_val[0:300]
 
         self.train_dataset = CustomDataset4PeakDetection(label_files_train, label_train, label_dir, leads_index, sample_rate=resample_Fs,
                                            transform=train_transforms)

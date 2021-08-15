@@ -46,11 +46,11 @@
         }
     },
     "trainer": {
-        "epochs": 20,
+        "epochs": 50,
         "save_dir": "/data/ecg/challenge2021/saved/",
         "save_period": 1,
         "verbosity": 2,
-        "monitor": "max val_challenge_metric",
+        "monitor": "min val_loss",
         "early_stop": 4,
         "tensorboard": true
     },
