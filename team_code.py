@@ -12,6 +12,7 @@
 # Import functions. These functions are not required. You can change or remove them.
 from helper_code import *
 import json
+import copy
 import numpy as np, os, sys, joblib
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
@@ -81,18 +82,17 @@ def training_code(data_directory, model_directory):
     # configs = ['train_12leads.json']
     challenge_dataset = ChallengeDataset(data_directory, split_idx, window_size=2500, resample_Fs=250)
     fine_tuning_dataset = FineTuningDataset(data_directory, fine_tuning_split_idx, window_size=2500, resample_Fs=250)
-    domain_dataset = Domain_Dataset(data_directory, fine_tuning_split_idx, window_size=2500, resample_Fs=250)
+    # domain_dataset = Domain_Dataset(data_directory, fine_tuning_split_idx, window_size=2500, resample_Fs=250)
 
     train_dataset, val_dataset = challenge_dataset.train_dataset, challenge_dataset.val_dataset
     fine_tuning_train_dataset, fine_tuning_val_dataset = fine_tuning_dataset.train_dataset, fine_tuning_dataset.val_dataset
-    domain_train_dataset, domain_val_dataset = domain_dataset.train_dataset, domain_dataset.val_dataset
+    # domain_train_dataset, domain_val_dataset = domain_dataset.train_dataset, domain_dataset.val_dataset
     for config_json_path in configs:
         train_model(training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset)
         fine_tuning_model(training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, fine_tuning_train_dataset,
                           fine_tuning_val_dataset)
-        domain_classification_model(training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, domain_train_dataset,
-                                    domain_val_dataset)
-
+        # domain_classification_model(training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, domain_train_dataset,
+        #                             domain_val_dataset)
 
 
 def train_model(config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset):
@@ -469,55 +469,69 @@ def domain_classification_model(config_json, split_idx, data_directory, model_di
 
 
 def run_my_model(model_list, header, recording, config_path):
-    model_domain, model = model_list[0], model_list[1]
+    model_domain, model_500Hz_10s, model_500Hz_15s = model_list[0], model_list[1], model_list[2]
     recording[np.isnan(recording)] = 0
     recording = np.array(recording, dtype=float)
     with open(config_path, 'r', encoding='utf8')as fp:
         config = json.load(fp)
-    # lead_number = config['lead_number']
-
-    # ### to get recording in shape [12, ?]
-    # recording_tmp = np.zeros((12, recording.shape[1]))
-    # leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    # if lead_number == 2:
-    #     # two leads
-    #     leads_index = [1, 11]
-    # elif lead_number == 3:
-    #     # three leads
-    #     leads_index = [0, 1, 7]
-    # elif lead_number == 6:
-    #     # six leads
-    #     leads_index = [0, 1, 2, 3, 4, 5]
-    # recording_tmp[leads_index] = recording
-    # recording = recording_tmp
 
     # divide ADC_gain and resample
-    resample_Fs = config["data_loader"]['args']["resample_Fs"]
-    window_size = config["data_loader"]['args']["window_size"]
+    resample_Fs = 500
+    window_size = 5000
     header = header.split('\n')
-    recording = resample(recording, header, resample_Fs)
+    recording1 = copy.deepcopy(recording)
+    recording1 = resample(recording1, header, resample_Fs)
 
     # to filter and detrend samples
-    recording = filter_and_detrend(recording)
+    recording1 = filter_and_detrend(recording1)
 
     n_segment = 1
     # slide and cut
-    recording = slide_and_cut(recording, n_segment, window_size, resample_Fs, test_time_aug=True)
+    recording1 = slide_and_cut(recording1, n_segment, window_size, resample_Fs, test_time_aug=True)
 
     if config["arch"]["args"]["channel_num"] == 8:
         leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
-        recording = recording[:, leads_index, :]
-    recording[np.isnan(recording)] = 0
-    data = torch.tensor(recording)
+        recording1 = recording1[:, leads_index, :]
+    recording1[np.isnan(recording1)] = 0
+    data = torch.tensor(recording1)
     data = data.to(device, dtype=torch.float)
+
     output_domain = torch.sigmoid(model_domain(data))
     output_domain = output_domain.detach().cpu().numpy()
     output_domain = np.mean(output_domain, axis=0)
+    output = model_500Hz_10s(data)
+    prediction1 = torch.sigmoid(output)
+    prediction1 = prediction1.detach().cpu().numpy()
+    prediction1 = np.expand_dims(np.max(prediction1, axis=0),axis=0)
 
-    output = model(data)
-    prediction = torch.sigmoid(output)
-    prediction = prediction.detach().cpu().numpy()
-    prediction = np.mean(prediction, axis=0)
+    # predict 500Hz 15s
+    # divide ADC_gain and resample
+    resample_Fs = 500
+    window_size = 7500
+    recording2 = copy.deepcopy(recording)
+    recording2 = resample(recording2, header, resample_Fs)
+
+    # to filter and detrend samples
+    recording2 = filter_and_detrend(recording2)
+
+    n_segment = 1
+    # slide and cut
+    recording2 = slide_and_cut(recording2, n_segment, window_size, resample_Fs, test_time_aug=True)
+
+    if config["arch"]["args"]["channel_num"] == 8:
+        leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
+        recording2 = recording2[:, leads_index, :]
+    recording2[np.isnan(recording2)] = 0
+    data = torch.tensor(recording2)
+    data = data.to(device, dtype=torch.float)
+
+    output = model_500Hz_15s(data)
+    prediction2 = torch.sigmoid(output)
+    prediction2 = prediction2.detach().cpu().numpy()
+    prediction2 = np.expand_dims(np.max(prediction2, axis=0),axis=0)
+
+    prediction = np.mean(np.concatenate([prediction1, prediction2], axis=0), axis=0)
+    # prediction = np.mean(prediction1, axis=0)
 
     classes = "164889003,164890007,6374002,426627000,733534002,713427006,270492004,713426002,39732003,445118002,164947007,251146004,111975006,698252002,426783006,63593006,10370003,365413008,427172004,164917005,47665007,427393009,426177001,427084000,164934002,59931005"
     ### equivalent SNOMED CT codes merged, noted as the larger one
@@ -525,9 +539,19 @@ def run_my_model(model_list, header, recording, config_path):
     all_classes = my_classes
 
     label = np.zeros((26,), dtype=int)
-    if output_domain[0] > 0.8:
+    # print(output_domain)
+    if output_domain[0] > 0.9:
         prediction[[1, 2, 3, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]] = 0
-    threshold = 0.5
+    if config["arch"]["args"]["channel_num"] == 8:
+        threshold = 0.5
+    elif config["arch"]["args"]["channel_num"] == 6:
+        threshold = 0.45
+    elif config["arch"]["args"]["channel_num"] == 4:
+        threshold = 0.5
+    elif config["arch"]["args"]["channel_num"] == 3:
+        threshold = 0.5
+    else:
+        threshold = 0.4
     indexes = np.where(prediction > threshold)
     label[indexes] += 1
 
@@ -558,7 +582,8 @@ def run_my_model(model_list, header, recording, config_path):
     # for dx2 in ["6374002"]:
     #     label_output[all_classes.index(dx2)] = 0
     #     prediction_output[all_classes.index(dx2)] = 0
-    label_output[all_classes.index("426783006")] = (label_output[all_classes.index("426783006")] > threshold) | ((label_output > threshold).sum() == 0)
+    label_output[all_classes.index("426783006")] = (label_output[all_classes.index("426783006")] > threshold) | (
+            (label_output > threshold).sum() == 0)
     return all_classes, label_output, prediction_output
 
 
@@ -592,18 +617,29 @@ def load_model(model_directory, leads):
     global current_config_json
     current_config_json = config_json
 
-    checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best.pth'
-    model = load_my_model(config, checkpoint_path)
-    model.eval()
+    if leads_num == 4:
+        checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_pretrain_model_best_500Hz_10s.pth'
+    else:
+        checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best_500Hz_10s.pth'
+    model1 = load_my_model(config, checkpoint_path)
+    model1.eval()
+    print(checkpoint_path)
+
+    if leads_num == 4:
+        checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_pretrain_model_best_500Hz_15s.pth'
+    else:
+        checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best_500Hz_15s.pth'
+    model2 = load_my_model(config, checkpoint_path)
+    model2.eval()
+    print(checkpoint_path)
 
     config["arch"]['args']['num_classes'] = 2
     checkpoint_domain_path = model_directory + '/lead_' + str(leads_num) + '_domain_model_best.pth'
     model_domain = load_my_model(config, checkpoint_domain_path)
     model_domain.eval()
+    print(checkpoint_domain_path)
 
-
-
-    return [model_domain, model]
+    return [model_domain, model1, model2]
 
 
 def load_my_model(config, checkpoint_path=None):
