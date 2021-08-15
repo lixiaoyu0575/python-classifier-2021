@@ -276,6 +276,64 @@ def custom_bce(output, target):
     # print(output.size(),target.size())
     return loss(output, target)
 
+
+class YoloLoss(nn.Module):
+    # refer to https://github.com/abeardear/pytorch-YOLO-v1/blob/master/yoloLoss.py
+    def __init__(self,feature_length,l_coord,l_noobj):
+        super(YoloLoss,self).__init__()
+        self.N = feature_length
+        self.l_coord = l_coord
+        self.l_noobj = l_noobj
+
+    def forward(self, pred_tensor, target_tensor: torch.Tensor):
+        # shape: (B, N, 3)  [c, x, type_num, peak_type]
+        #
+        #
+
+        # deal with samples without peaks detected
+        target_tmp = target_tensor.view(len(target_tensor), -1)
+        target_max = target_tmp.max(1)[0]
+        target_index = target_max.gt(0.5)
+        target_tensor = target_tensor[target_index]
+        pred_tensor = pred_tensor[target_index]
+
+        coo_mask = target_tensor[:, :, :, 0] > 0.5 #>0
+        noo_mask = target_tensor[:, :, :, 0] < 0.5 #== 0
+        coo_mask = coo_mask.unsqueeze(-1).expand_as(target_tensor)
+        noo_mask = noo_mask.unsqueeze(-1).expand_as(target_tensor)
+
+        coo_pred = pred_tensor[coo_mask].view(-1, 3)
+        coo_target = target_tensor[coo_mask].view(-1, 3)
+
+        # when no object
+        # optimize confidence
+        noo_pred = pred_tensor[noo_mask].view(-1, 3)
+        noo_target = target_tensor[noo_mask].view(-1, 3)
+        noo_pred_mask = torch.zeros_like(noo_pred)
+        noo_pred_mask.zero_()
+        noo_pred_mask[:, 0] = 1
+        noo_pred_mask = noo_pred_mask.bool()
+        noo_pred_c = noo_pred[noo_pred_mask]  # noo pred只需要计算 c 的损失 size[-1,2]
+        noo_target_c = noo_target[noo_pred_mask]
+        no_obj_loss = F.mse_loss(noo_pred_c, noo_target_c, reduction='sum')
+
+        # when there is a object
+        c_pred = coo_pred[:, :1]
+        x_pred = coo_pred[:, 1:2]
+        class_pred = coo_pred[:, 2:]
+        c_target = coo_target[:, :1]
+        x_target = coo_target[:, 1:2]
+        class_target = coo_target[:, 2:]
+
+
+        c_loss = F.mse_loss(c_pred, c_target, reduction='sum')
+
+        loc_loss = F.mse_loss(x_pred, x_target, reduction='sum')
+
+        class_loss = F.mse_loss(class_pred, class_target, reduction='sum')
+
+        return (self.l_noobj * no_obj_loss + c_loss + class_loss + self.l_coord * loc_loss) / (self.N * len(target_tensor))
+
 if __name__ == "__main__":
     a = torch.rand((16, 24))
     b = torch.rand((16, 24))

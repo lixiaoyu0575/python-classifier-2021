@@ -47,7 +47,7 @@ files_models = {
     "beat_aligned_cnn_transformer": ['beat_aligned_cnn_transformer'],
     "beat_aligned_cnn": ['beat_aligned_cnn'],
     "nesT": ["nesT"],
-    "se_resnet": ['se_resnet']
+    "se_resnet": ['se_resnet', 'se_resnet_peak_detection_tmp']
 }
 
 my_classes = []
@@ -78,24 +78,40 @@ def training_code(data_directory, model_directory):
     # json files
     training_root = 'model_training/'
 
-    configs = ['train_12leads.json', 'train_6leads.json', 'train_4leads.json', 'train_3leads.json', 'train_2leads.json']
-    # configs = ['train_12leads.json']
-    challenge_dataset = ChallengeDataset(data_directory, split_idx, window_size=2500, resample_Fs=250)
-    fine_tuning_dataset = FineTuningDataset(data_directory, fine_tuning_split_idx, window_size=2500, resample_Fs=250)
+    # configs = ['train_2leads.json', 'train_12leads.json', 'train_6leads.json', 'train_4leads.json', 'train_3leads.json']
+    configs = ['train_2leads_peak_detection.json']
+    challenge_dataset = ChallengeDataset_2(data_directory, split_idx, window_size=4992, resample_Fs=500)
+    fine_tuning_dataset = FineTuningDataset_2(data_directory, fine_tuning_split_idx, window_size=4992, resample_Fs=500)
     # domain_dataset = Domain_Dataset(data_directory, fine_tuning_split_idx, window_size=2500, resample_Fs=250)
 
     train_dataset, val_dataset = challenge_dataset.train_dataset, challenge_dataset.val_dataset
     fine_tuning_train_dataset, fine_tuning_val_dataset = fine_tuning_dataset.train_dataset, fine_tuning_dataset.val_dataset
     # domain_train_dataset, domain_val_dataset = domain_dataset.train_dataset, domain_dataset.val_dataset
     for config_json_path in configs:
-        train_model(training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset)
-        fine_tuning_model(training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, fine_tuning_train_dataset,
-                          fine_tuning_val_dataset)
+        # Build model architecture
+        # global model
+        config_json = training_root + config_json_path
+        with open(config_json, 'r', encoding='utf8')as fp:
+            config = json.load(fp)
+        for file, types in files_models.items():
+            for type in types:
+                if config["arch"]["type"] == type:
+                    model = init_obj(config, 'arch', eval("module_arch_" + file))
+        model.to(device)
+
+        train_model(model, training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=0, peak_loss_ratio=1)
+        model.load_state_dict(
+            torch.load(model_directory + '/lead_2_pretrain_model_best.pth')['state_dict'])
+        train_model(model, training_root + config_json_path, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002)
+        model.load_state_dict(
+            torch.load(model_directory + '/lead_2_pretrain_model_best.pth')['state_dict'])
+        fine_tuning_model(model, training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, fine_tuning_train_dataset,
+                          fine_tuning_val_dataset, class_loss_ratio=0.1, peak_loss_ratio=0.0002)
         # domain_classification_model(training_root + config_json_path, fine_tuning_split_idx, data_directory, model_directory, domain_train_dataset,
         #                             domain_val_dataset)
 
 
-def train_model(config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset):
+def train_model(model, config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002):
     # Get training configs
     with open(config_json, 'r', encoding='utf8')as fp:
         config = json.load(fp)
@@ -113,13 +129,7 @@ def train_model(config_json, split_idx, data_directory, model_directory, train_d
     base_dir = 'model_training/training_results'
     result_dir, log_dir, checkpoint_dir, tb_dir = make_dirs(base_dir)
 
-    # Build model architecture
-    # global model
-    for file, types in files_models.items():
-        for type in types:
-            if config["arch"]["type"] == type:
-                model = init_obj(config, 'arch', eval("module_arch_" + file))
-    model.to(device)
+
     # Logger for train
     logger = get_logger(log_dir + '/info_lead_' + str(lead_number) + '.log', name='train')
     logger.info(config["arch"]["type"])
@@ -141,15 +151,6 @@ def train_model(config_json, split_idx, data_directory, model_directory, train_d
     num_classes = len(classes)
     train_loader.all_classes = classes
 
-    # ### for test
-    # config_json = 'model_training/train_2leads.json'
-    # with open(config_json, 'r', encoding='utf8')as fp:
-    #     config = json.load(fp)
-    # checkpoint_path = model_directory + '/lead_12_model_best.pth'
-    # model = load_my_model(config, checkpoint_path)
-
-    # Get function handles of loss and metrics
-    # criterion = getattr(modules, config['loss']['type'])
     criterion = AsymmetricLossOptimized()
     # criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
 
@@ -176,7 +177,7 @@ def train_model(config_json, split_idx, data_directory, model_directory, train_d
     for epoch in range(epochs):
         best = False
         train_loss, train_metric = train(model, optimizer, train_loader, criterion, train_challenge_metric, epoch,
-                                         device=device)
+                                         device=device, class_loss_ratio=class_loss_ratio, peak_loss_ratio=peak_loss_ratio)
         val_loss, val_metric = valid(model, valid_loader, criterion, val_challenge_metric, device=device)
 
         lr_scheduler.step()
@@ -217,10 +218,10 @@ def train_model(config_json, split_idx, data_directory, model_directory, train_d
         #
         # val_writer.add_scalar('loss', val_loss, epoch)
         # val_writer.add_scalar('metric', val_metric, epoch)
-    del model, train_loader, logger, valid_loader
+    # del model, train_loader, logger, valid_loader
 
 
-def fine_tuning_model(config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset):
+def fine_tuning_model(model, config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset, class_loss_ratio=1, peak_loss_ratio=0.002):
     # Get training configs
     with open(config_json, 'r', encoding='utf8')as fp:
         config = json.load(fp)
@@ -302,7 +303,7 @@ def fine_tuning_model(config_json, split_idx, data_directory, model_directory, t
     for epoch in range(epochs):
         best = False
         train_loss, train_metric = train(model, optimizer, train_loader, criterion, train_challenge_metric, epoch,
-                                         device=device)
+                                         device=device, class_loss_ratio=class_loss_ratio, peak_loss_ratio=peak_loss_ratio)
         val_loss, val_metric = valid(model, valid_loader, criterion, val_challenge_metric, device=device)
 
         lr_scheduler.step()
@@ -343,7 +344,7 @@ def fine_tuning_model(config_json, split_idx, data_directory, model_directory, t
         #
         # val_writer.add_scalar('loss', val_loss, epoch)
         # val_writer.add_scalar('metric', val_metric, epoch)
-    del model, train_loader, logger, valid_loader
+    # del model, train_loader, logger, valid_loader
 
 
 def domain_classification_model(config_json, split_idx, data_directory, model_directory, train_dataset, val_dataset):
@@ -619,6 +620,8 @@ def load_model(model_directory, leads):
 
     if leads_num == 4:
         checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_pretrain_model_best_500Hz_10s.pth'
+    elif leads_num == 2:
+        checkpoint_path = 'lead_2_model_best.pth'
     else:
         checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best_500Hz_10s.pth'
     model1 = load_my_model(config, checkpoint_path)
@@ -627,6 +630,8 @@ def load_model(model_directory, leads):
 
     if leads_num == 4:
         checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_pretrain_model_best_500Hz_15s.pth'
+    elif leads_num == 2:
+        checkpoint_path = 'lead_2_model_best.pth'
     else:
         checkpoint_path = model_directory + '/lead_' + str(leads_num) + '_model_best_500Hz_15s.pth'
     model2 = load_my_model(config, checkpoint_path)
@@ -705,24 +710,36 @@ def get_features(header, recording, leads):
 
     return age, sex, rms
 
-
-def train(model, optimizer, train_loader, criterion, metric, epoch, device=None):
+from utils.loss import YoloLoss
+def train(model, optimizer, train_loader, criterion, metric, epoch, device=None, class_loss_ratio=1, peak_loss_ratio=0.02):
     sigmoid = nn.Sigmoid()
     model.train()
     cc = 0
     Loss = 0
     total = 0
     batchs = 0
-    for batch_idx, (data, target, class_weights) in enumerate(train_loader):
+    network_factor = 32
+    yolo_location_weight = 5
+    yolo_neg_weight = 0.2
+    yolo_loss = YoloLoss(4992 // network_factor, yolo_location_weight, yolo_neg_weight)
+    class_loss_ratio = class_loss_ratio
+    peak_loss_ratio = peak_loss_ratio
+
+    for batch_idx, (data, target, class_weights, target_peak) in enumerate(train_loader):
         batch_start = time.time()
-        data, target, class_weights = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), class_weights.to(device,
-                                                                                                                                 dtype=torch.float)
+        data, target, class_weights, target_peak = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), class_weights.to(device,
+                                                                                                                                 dtype=torch.float), target_peak.to(device, dtype=torch.float)
         # target_coarse = target_coarse.to(device)
         optimizer.zero_grad()
-        output = model(data)
+        output, output_peak = model(data)
 
-        loss = criterion(output, target) * class_weights
-        loss = torch.mean(loss)
+        loss_peak = yolo_loss(output_peak, target_peak)
+        loss_class = criterion(output, target) * class_weights
+        loss_class = torch.mean(loss_class)
+        # print(loss_class, class_weights)
+        loss = class_loss_ratio * loss_class + peak_loss_ratio * loss_peak
+        # loss = loss_peak
+
         loss.backward()
         optimizer.step()
 
@@ -759,11 +776,11 @@ def valid(model, valid_loader, criterion, metric, device=None):
     total = 0
     batchs = 0
     with torch.no_grad():
-        for batch_idx, (data, target, class_weights) in enumerate(valid_loader):
+        for batch_idx, (data, target, class_weights, peak_target) in enumerate(valid_loader):
             data, target, class_weights = data.to(device, dtype=torch.float), target.to(device, dtype=torch.float), class_weights.to(device,
                                                                                                                                      dtype=torch.float)
             # target_coarse = target_coarse.to(device)
-            output = model(data)
+            output, _ = model(data)
 
             loss = criterion(output, target) * class_weights
             loss = torch.mean(loss)

@@ -8,6 +8,11 @@ from model_training.util import my_find_challenge_files
 import os
 from utils.denoising import filter_and_detrend
 
+from torchvision import datasets, transforms
+
+import utils.transformers as module_transformers
+from model_training.custom_dataset import CustomDataset4PeakDetection
+
 
 # Challenge Dataloaders and Challenge metircs
 
@@ -73,7 +78,7 @@ class ChallengeDataset():
     challenge2020 data loading
     """
 
-    def __init__(self, label_dir, split_index, batch_size=128, shuffle=True, num_workers=0, resample_Fs=500, window_size=5000, n_segment=1,
+    def __init__(self, label_dir, split_index, batch_size=128, shuffle=True, num_workers=0, resample_Fs=500, window_size=4992, n_segment=1,
                  normalization=False, training_size=None, augmentations=None, p=0.5, lead_number=12, save_data=False, load_saved_data=False):
         self.label_dir = label_dir
         self.dir2save_data = '/data/ecg/challenge2021/data/'
@@ -244,7 +249,7 @@ class FineTuningDataset():
     challenge2020 data loading
     """
 
-    def __init__(self, label_dir, split_index, batch_size=128, shuffle=True, num_workers=0, resample_Fs=500, window_size=5000, n_segment=1,
+    def __init__(self, label_dir, split_index, batch_size=128, shuffle=True, num_workers=0, resample_Fs=500, window_size=4992, n_segment=1,
                  normalization=False, training_size=None, augmentations=None, p=0.5, lead_number=12, save_data=False, load_saved_data=False):
         self.label_dir = label_dir
         self.dir2save_data = '/data/ecg/challenge2021/data/'
@@ -409,7 +414,7 @@ class Domain_Dataset():
     challenge2020 data loading
     """
 
-    def __init__(self, label_dir, split_index, batch_size=128, shuffle=True, num_workers=0, resample_Fs=500, window_size=5000, n_segment=1,
+    def __init__(self, label_dir, split_index, batch_size=128, shuffle=True, num_workers=0, resample_Fs=500, window_size=4992, n_segment=1,
                  normalization=False, training_size=None, augmentations=None, p=0.5, lead_number=12, save_data=False, load_saved_data=False):
         self.label_dir = label_dir
         self.dir2save_data = '/data/ecg/challenge2021/data/'
@@ -528,7 +533,7 @@ class ChallengeDataLoader(BaseDataLoader):
     challenge2020 data loading
     """
 
-    def __init__(self, train_dataset, val_dataset, batch_size=128, shuffle=True, num_workers=0):
+    def __init__(self, train_dataset, val_dataset, batch_size=256, shuffle=True, num_workers=0):
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
 
@@ -536,3 +541,248 @@ class ChallengeDataLoader(BaseDataLoader):
 
         # self.valid_data_loader.file_names = file_names
         # self.valid_data_loader.idx = val_index
+
+class FineTuningDataset_2(BaseDataLoader):
+    """
+    challenge2020 data loading
+    """
+    def __init__(self, label_dir, split_index, batch_size=256, shuffle=True, num_workers=2, resample_Fs=300, window_size=3000, n_segment=1,
+                 normalization=False, training_size=None, train_aug=None, val_aug=None, p=0.5, lead_number=2, save_data=False, load_saved_data=False, to_extract_peaks=False, to_contrast=False, to_filter_noise=False, network_factor=32, to_include_E=True, dataset_name = 'CustomDataset'):
+        self.label_dir = label_dir
+        self.dir2save_data = '/data/ecg/challenge2021/data/'
+        dir2save_data = '/data/ecg/challenge2021/data/'
+        start = time.time()
+
+        # Define the weights, the SNOMED CT code for the normal class, and equivalent SNOMED CT codes.
+        weights_file = 'weights.csv'
+
+        # Load the scored classes and the weights for the Challenge metric.
+        print('Loading weights...')
+        _, weights, indices = load_weights(weights_file)
+        classes = "164889003,164890007,6374002,426627000,733534002,713427006,270492004,713426002,39732003,445118002,164947007,251146004,111975006,698252002,426783006,63593006,10370003,365413008,427172004,164917005,47665007,427393009,426177001,427084000,164934002,59931005"
+        ### equivalent SNOMED CT codes merged, noted as the larger one
+        classes = classes.split(',')
+        self.weights = weights
+
+        # Load the label and output files.
+        print('Loading label and output files...')
+        label_files = my_find_challenge_files(label_dir)
+
+        ### load file names
+        # idx2del = np.load('process/idx2del.npy')
+        label_files_tmp = []
+        count = 0
+        for f in label_files:
+            count += 1
+            fname = f.split('/')[-1].split('.')[0]
+            if fname[0] == 'A' or fname[0] == 'E':
+                label_files_tmp.append(f)
+        label_files = label_files_tmp
+
+        labels_onehot = load_labels(label_files, classes)
+
+        split_idx = loadmat(split_index)
+        train_index, val_index = split_idx['train_index'], split_idx['val_index']
+        train_index = train_index.reshape((train_index.shape[1],))
+        if training_size is not None:  # for test
+            train_index = train_index[0:training_size]
+        val_index = val_index.reshape((val_index.shape[1],))
+
+        num_files = len(label_files)
+        label_files_train, label_files_val = [], []
+        label_train, label_val = [], []
+        for i in train_index:
+            label_files_train.append(label_files[i])
+            label_train.append(labels_onehot[i])
+        for i in val_index:
+            label_files_val.append(label_files[i])
+            label_val.append(labels_onehot[i])
+
+
+        ### 12 leads order: I II III aVL aVR aVF V1 V2 V3 V4 V5 V6
+        if lead_number == 2:  # two leads: I II
+            leads_index = [0, 1]
+        elif lead_number == 3:  # three leads: I II V2
+            leads_index = [0, 1, 7]
+        elif lead_number == 4:  # four leads: I II III V2
+            leads_index = [0, 1, 2, 7]
+        elif lead_number == 6:  # six leads: I II III aVL aVR aVF
+            leads_index = [0, 1, 2, 3, 4, 5]
+        elif lead_number == 8:  # eight leads
+            leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
+        else:  # twelve leads
+            leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        train_aug = [
+                {
+                    "type": "SlideAndCut",
+                    "args": {
+                        "window_size": 4992,
+                        "sampling_rate": 500
+                    }
+                }
+            ]
+        val_aug = [
+                {
+                    "type": "SlideAndCut",
+                    "args": {
+                        "window_size": 4992,
+                        "sampling_rate": 500
+                    }
+                }
+            ]
+        train_transforms = None
+        if train_aug is not None and len(train_aug) > 0:
+            train_transforms = []
+            for aug in train_aug:
+                key =  aug['type']
+                module_args = dict(aug['args'])
+                current_transform = getattr(module_transformers, key)(**module_args)
+                train_transforms.append(current_transform)
+            train_transforms = transforms.Compose(train_transforms)
+        val_transforms = None
+        if val_aug is not None and len(val_aug) > 0:
+            val_transforms = []
+            for aug in val_aug:
+                key =  aug['type']
+                module_args = dict(aug['args'])
+                current_transform = getattr(module_transformers, key)(**module_args)
+                val_transforms.append(current_transform)
+            val_transforms = transforms.Compose(val_transforms)
+
+        # Dataset = eval(dataset_name)
+
+        #tmp
+        label_files_train = label_files_train[0:1000]
+        label_files_val = label_files_val[0:1000]
+        self.train_dataset = CustomDataset4PeakDetection(label_files_train, label_train, label_dir, leads_index, sample_rate=resample_Fs,
+                                           transform=train_transforms)
+        self.val_dataset = CustomDataset4PeakDetection(label_files_val, label_val, label_dir, leads_index, sample_rate=resample_Fs, transform=val_transforms)
+
+        end = time.time()
+        print('time to get and process data: {}'.format(end - start))
+        super().__init__(self.train_dataset, self.val_dataset, None, batch_size, shuffle, num_workers)
+
+
+class ChallengeDataset_2(BaseDataLoader):
+    """
+    challenge2020 data loading
+    """
+    def __init__(self, label_dir, split_index, batch_size=256, shuffle=True, num_workers=2, resample_Fs=500, window_size=3000, n_segment=1,
+                 normalization=False, training_size=None, train_aug=None, val_aug=None, p=0.5, lead_number=2, save_data=False, load_saved_data=False, to_extract_peaks=False, to_contrast=False, to_filter_noise=False, network_factor=32, to_include_E=True, dataset_name = 'CustomDataset'):
+        self.label_dir = label_dir
+        self.dir2save_data = '/data/ecg/challenge2021/data/'
+        dir2save_data = '/data/ecg/challenge2021/data/'
+        start = time.time()
+
+        # Define the weights, the SNOMED CT code for the normal class, and equivalent SNOMED CT codes.
+        weights_file = 'weights.csv'
+
+        # Load the scored classes and the weights for the Challenge metric.
+        print('Loading weights...')
+        _, weights, indices = load_weights(weights_file)
+        classes = "164889003,164890007,6374002,426627000,733534002,713427006,270492004,713426002,39732003,445118002,164947007,251146004,111975006,698252002,426783006,63593006,10370003,365413008,427172004,164917005,47665007,427393009,426177001,427084000,164934002,59931005"
+        ### equivalent SNOMED CT codes merged, noted as the larger one
+        classes = classes.split(',')
+        self.weights = weights
+
+        # Load the label and output files.
+        print('Loading label and output files...')
+        label_files = my_find_challenge_files(label_dir)
+
+        ### load file names
+        # idx2del = np.load('process/idx2del.npy')
+        label_files_tmp = []
+        count = 0
+        for f in label_files:
+            count += 1
+            fname = f.split('/')[-1].split('.')[0]
+            # if fname[0] == 'S' or fname[0] == 'I':
+            #     continue
+            label_files_tmp.append(f)
+        label_files = label_files_tmp
+
+        labels_onehot = load_labels(label_files, classes)
+
+        split_idx = loadmat(split_index)
+        train_index, val_index = split_idx['train_index'], split_idx['val_index']
+        train_index = train_index.reshape((train_index.shape[1],))
+        if training_size is not None:  # for test
+            train_index = train_index[0:training_size]
+        val_index = val_index.reshape((val_index.shape[1],))
+
+        num_files = len(label_files)
+        label_files_train, label_files_val = [], []
+        label_train, label_val = [], []
+        for i in train_index:
+            if i >= len(label_files):
+                print(i)
+            label_files_train.append(label_files[i])
+            label_train.append(labels_onehot[i])
+        for i in val_index:
+            label_files_val.append(label_files[i])
+            label_val.append(labels_onehot[i])
+
+
+        ### 12 leads order: I II III aVL aVR aVF V1 V2 V3 V4 V5 V6
+        if lead_number == 2:  # two leads: I II
+            leads_index = [0, 1]
+        elif lead_number == 3:  # three leads: I II V2
+            leads_index = [0, 1, 7]
+        elif lead_number == 4:  # four leads: I II III V2
+            leads_index = [0, 1, 2, 7]
+        elif lead_number == 6:  # six leads: I II III aVL aVR aVF
+            leads_index = [0, 1, 2, 3, 4, 5]
+        elif lead_number == 8:  # eight leads
+            leads_index = [0, 1, 6, 7, 8, 9, 10, 11]
+        else:  # twelve leads
+            leads_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        train_aug = [
+                {
+                    "type": "SlideAndCut",
+                    "args": {
+                        "window_size": 4992,
+                        "sampling_rate": 500
+                    }
+                }
+            ]
+        val_aug = [
+                {
+                    "type": "SlideAndCut",
+                    "args": {
+                        "window_size": 4992,
+                        "sampling_rate": 500
+                    }
+                }
+            ]
+        train_transforms = None
+        if train_aug is not None and len(train_aug) > 0:
+            train_transforms = []
+            for aug in train_aug:
+                key =  aug['type']
+                module_args = dict(aug['args'])
+                current_transform = getattr(module_transformers, key)(**module_args)
+                train_transforms.append(current_transform)
+            train_transforms = transforms.Compose(train_transforms)
+        val_transforms = None
+        if val_aug is not None and len(val_aug) > 0:
+            val_transforms = []
+            for aug in val_aug:
+                key =  aug['type']
+                module_args = dict(aug['args'])
+                current_transform = getattr(module_transformers, key)(**module_args)
+                val_transforms.append(current_transform)
+            val_transforms = transforms.Compose(val_transforms)
+
+        # Dataset = eval(dataset_name)
+
+        #tmp
+        label_files_train = label_files_train[0:1000]
+        label_files_val = label_files_val[0:1000]
+
+        self.train_dataset = CustomDataset4PeakDetection(label_files_train, label_train, label_dir, leads_index, sample_rate=resample_Fs,
+                                           transform=train_transforms)
+        self.val_dataset = CustomDataset4PeakDetection(label_files_val, label_val, label_dir, leads_index, sample_rate=resample_Fs, transform=val_transforms)
+
+        end = time.time()
+        print('time to get and process data: {}'.format(end - start))
+        super().__init__(self.train_dataset, self.val_dataset, None, batch_size, shuffle, num_workers)
